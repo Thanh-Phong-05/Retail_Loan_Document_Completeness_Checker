@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # CSDL SQL Server (Domain Data)
+  loan-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: loan-db
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=Unit123!
+    ports:
+      - "1433:1433"
+    networks:
+      - retail-loan-network
+
+  # Camunda 8 Zeebe Broker (Workflow Engine)
+  zeebe:
+    image: camunda/zeebe:8.2.0
+    container_name: zeebe
+    environment:
+      - ZEEBE_BROKER_NETWORK_HOST=0.0.0.0
+      - ZEEBE_BROKER_NETWORK_SECURITY_EXTENSION_CERTIFICATECHAINPATH=
+      - ZEEBE_BROKER_NETWORK_SECURITY_EXTENSION_PRIVATEKEYPATH=
+    ports:
+      - "26500:26500"
+      - "9600:9600"
+    networks:
+      - retail-loan-network
+
+  # Camunda 8 Operate (Giao diện theo dõi quy trình)
+  operate:
+    image: camunda/operate:8.2.0
+    container_name: operate
+    environment:
+      - CAMUNDA_OPERATE_ZEEBE_GATEWAYADDRESS=zeebe:26500
+      - CAMUNDA_OPERATE_ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CAMUNDA_OPERATE_ZEEBEELASTICSEARCH_URL=http://elasticsearch:9200
+    ports:
+      - "8080:8080"
+    depends_on:
+      - zeebe
+      - elasticsearch
+    networks:
+      - retail-loan-network
+
+  # Elasticsearch (Lưu trữ dữ liệu cho Camunda 8)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    networks:
+      - retail-loan-network
+
+networks:
+  retail-loan-network:
+    driver: bridge

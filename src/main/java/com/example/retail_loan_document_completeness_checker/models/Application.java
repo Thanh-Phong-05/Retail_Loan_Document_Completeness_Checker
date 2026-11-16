@@ -2,6 +2,7 @@ package com.example.retail_loan_document_completeness_checker.models;
 
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 // [SUB-104.2] Bảng Applications lưu hồ sơ
@@ -13,21 +14,21 @@ public class Application {
     @Column(name = "application_id", length = 50)
     private String applicationId;
 
-    @Column(name = "product_type", nullable = false)
+    @Column(name = "product_type", nullable = false, length = 100)
     private String productType;
 
-    @Column(name = "applicant_name", nullable = false)
+    @Column(name = "applicant_name", nullable = false, length = 200)
     private String applicantName;
 
     @Column(name = "submission_date")
     private LocalDate submissionDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "completeness_status")
+    @Column(name = "completeness_status", length = 40)
     private CompletenessStatus completenessStatus;
 
-    @OneToMany(mappedBy = "application", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<DocumentFile> documents;
+    @OneToMany(mappedBy = "application", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<DossierVersion> dossierVersions = new ArrayList<>();
 
     public Application() {}
 
@@ -46,6 +47,10 @@ public class Application {
     public CompletenessStatus getCompletenessStatus() { return completenessStatus; }
     public void setCompletenessStatus(CompletenessStatus completenessStatus) { this.completenessStatus = completenessStatus; }
 
-    public List<DocumentFile> getDocuments() { return documents; }
-    public void setDocuments(List<DocumentFile> documents) { this.documents = documents; }
+    public List<DossierVersion> getDossierVersions() { return dossierVersions; }
+
+    public void addDossierVersion(DossierVersion dossierVersion) {
+        dossierVersions.add(dossierVersion);
+        dossierVersion.setApplication(this);
+    }
 }
