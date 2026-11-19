@@ -1,6 +1,15 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useParams,
+} from "react-router-dom";
+
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { DossierProvider } from "./context/DossierContext";
+
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
 import MyDossiersPage from "./pages/MyDossiersPage";
@@ -8,16 +17,25 @@ import ReviewWorkspacePage from "./pages/ReviewWorkspacePage";
 import SelectPackagePage from "./pages/SelectPackagePage";
 import UploadDossierPage from "./pages/UploadDossierPage";
 
+// ======================================================
+// PROTECTED ROUTE - KIEM TRA DANG NHAP VA PHAN QUYEN
+// ======================================================
+
 function RoleRoute({ allowedRoles, children }) {
   const { user, isAuthenticated } = useAuth();
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+
+  if (
+    allowedRoles &&
+    !allowedRoles.includes(user?.role)
+  ) {
     return (
       <Navigate
         to={
-          user.role === "CUSTOMER"
+          user?.role === "CUSTOMER"
             ? "/customer/select-package"
             : "/admin/dashboard"
         }
@@ -25,16 +43,25 @@ function RoleRoute({ allowedRoles, children }) {
       />
     );
   }
+
   return children;
 }
 
+// ======================================================
+// CHUYEN HUONG TRANG CHU THEO VAI TRO
+// ======================================================
+
 function HomeRedirect() {
   const { user, isAuthenticated } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
   return (
     <Navigate
       to={
-        user.role === "CUSTOMER"
+        user?.role === "CUSTOMER"
           ? "/customer/select-package"
           : "/admin/dashboard"
       }
@@ -43,16 +70,57 @@ function HomeRedirect() {
   );
 }
 
+// ======================================================
+// SUB-206.2
+// HO TRO DUONG DAN /dossiers/:id
+//
+// Vi ReviewWorkspacePage hien dang su dung
+// useParams().applicationId, ta chuyen huong ve
+// route cu cua nhom de tai su dung giao dien.
+// ======================================================
+
+function DossierRouteRedirect() {
+  const { id } = useParams();
+
+  if (!id) {
+    return <Navigate to="/admin/queue" replace />;
+  }
+
+  return (
+    <Navigate
+      to={`/admin/review/${encodeURIComponent(id)}`}
+      replace
+    />
+  );
+}
+
+// ======================================================
+// APPLICATION ROUTES
+// ======================================================
+
 export default function App() {
   return (
     <AuthProvider>
       <DossierProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<HomeRedirect />} />
-            <Route path="/login" element={<LoginPage />} />
 
-            {/* Customer Routes */}
+            {/* TRANG CHU */}
+            <Route
+              path="/"
+              element={<HomeRedirect />}
+            />
+
+            {/* DANG NHAP */}
+            <Route
+              path="/login"
+              element={<LoginPage />}
+            />
+
+            {/* ====================================== */}
+            {/* CUSTOMER ROUTES */}
+            {/* ====================================== */}
+
             <Route
               path="/customer/select-package"
               element={
@@ -61,6 +129,7 @@ export default function App() {
                 </RoleRoute>
               }
             />
+
             <Route
               path="/customer/upload"
               element={
@@ -69,6 +138,7 @@ export default function App() {
                 </RoleRoute>
               }
             />
+
             <Route
               path="/customer/my-dossiers"
               element={
@@ -78,7 +148,11 @@ export default function App() {
               }
             />
 
-            {/* Bank Admin / Officer Routes */}
+            {/* ====================================== */}
+            {/* BANK OFFICER ROUTES */}
+            {/* ====================================== */}
+
+            {/* DANH SACH HO SO */}
             <Route
               path="/admin/dashboard"
               element={
@@ -87,6 +161,8 @@ export default function App() {
                 </RoleRoute>
               }
             />
+
+            {/* HANG DOI XAC MINH */}
             <Route
               path="/admin/queue"
               element={
@@ -95,6 +171,8 @@ export default function App() {
                 </RoleRoute>
               }
             />
+
+            {/* TAI HO SO MOI */}
             <Route
               path="/admin/upload"
               element={
@@ -103,6 +181,12 @@ export default function App() {
                 </RoleRoute>
               }
             />
+
+            {/* ====================================== */}
+            {/* SUB-206.2 - REVIEW WORKSPACE */}
+            {/* ====================================== */}
+
+            {/* DUONG DAN HIEN TAI CUA NHOM */}
             <Route
               path="/admin/review/:applicationId"
               element={
@@ -112,8 +196,25 @@ export default function App() {
               }
             />
 
-            {/* Fallback */}
-            <Route path="*" element={<HomeRedirect />} />
+            {/* DUONG DAN THEO DE BAI: /dossiers/:id */}
+            <Route
+              path="/dossiers/:id"
+              element={
+                <RoleRoute allowedRoles={["OFFICER"]}>
+                  <DossierRouteRedirect />
+                </RoleRoute>
+              }
+            />
+
+            {/* ====================================== */}
+            {/* FALLBACK */}
+            {/* ====================================== */}
+
+            <Route
+              path="*"
+              element={<HomeRedirect />}
+            />
+
           </Routes>
         </BrowserRouter>
       </DossierProvider>
