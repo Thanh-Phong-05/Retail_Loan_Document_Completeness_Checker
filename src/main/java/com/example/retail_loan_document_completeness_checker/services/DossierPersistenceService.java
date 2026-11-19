@@ -13,13 +13,17 @@ import com.example.retail_loan_document_completeness_checker.models.DocumentFile
 import com.example.retail_loan_document_completeness_checker.models.DossierVersion;
 import com.example.retail_loan_document_completeness_checker.repositories.ApplicationRepository;
 import com.example.retail_loan_document_completeness_checker.repositories.AuditLogRepository;
+import com.example.retail_loan_document_completeness_checker.repositories.DocumentFileRepository;
 import com.example.retail_loan_document_completeness_checker.repositories.DossierVersionRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -28,15 +32,27 @@ public class DossierPersistenceService {
     private final ApplicationRepository applicationRepository;
     private final DossierVersionRepository dossierVersionRepository;
     private final AuditLogRepository auditLogRepository;
+    private final DocumentFileRepository documentFileRepository;
+
+    @Autowired
+    public DossierPersistenceService(
+            ApplicationRepository applicationRepository,
+            DossierVersionRepository dossierVersionRepository,
+            AuditLogRepository auditLogRepository,
+            DocumentFileRepository documentFileRepository
+    ) {
+        this.applicationRepository = applicationRepository;
+        this.dossierVersionRepository = dossierVersionRepository;
+        this.auditLogRepository = auditLogRepository;
+        this.documentFileRepository = documentFileRepository;
+    }
 
     public DossierPersistenceService(
             ApplicationRepository applicationRepository,
             DossierVersionRepository dossierVersionRepository,
             AuditLogRepository auditLogRepository
     ) {
-        this.applicationRepository = applicationRepository;
-        this.dossierVersionRepository = dossierVersionRepository;
-        this.auditLogRepository = auditLogRepository;
+        this(applicationRepository, dossierVersionRepository, auditLogRepository, null);
     }
 
     @Transactional
@@ -73,6 +89,27 @@ public class DossierPersistenceService {
                 .findFirstByApplicationApplicationIdOrderByVersionNumberDesc(applicationId)
                 .orElseThrow(() -> new DossierNotFoundException(applicationId));
         return toResponse(application, version);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DossierResponse> getAllLatest() {
+        return applicationRepository.findAll().stream()
+                .map(application -> dossierVersionRepository
+                        .findFirstByApplicationApplicationIdOrderByVersionNumberDesc(application.getApplicationId())
+                        .map(version -> toResponse(application, version)))
+                .flatMap(Optional::stream)
+                .sorted(Comparator.comparing(DossierResponse::versionCreatedAt).reversed())
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public DocumentFile getDocumentFile(String applicationId, String fileId) {
+        if (documentFileRepository == null) {
+            throw new DossierNotFoundException(applicationId);
+        }
+        return documentFileRepository
+                .findByFileIdAndDossierVersionApplicationApplicationId(fileId, applicationId)
+                .orElseThrow(() -> new DossierNotFoundException(applicationId));
     }
 
     private Application newApplication(UploadDossierRequest request) {
