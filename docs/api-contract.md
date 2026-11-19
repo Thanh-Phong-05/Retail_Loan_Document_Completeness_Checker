@@ -28,6 +28,38 @@ curl -X POST http://localhost:8080/api/v1/dossiers/upload \
 
 The API returns `201 Created`, a `Location` header, the created dossier version, and the SHA-256 hash of each file.
 
+## Get all dossiers (latest version per application)
+
+`GET /api/v1/dossiers` returns `200 OK` with a JSON array of all applications and their latest uploaded version, sorted by `versionCreatedAt` descending:
+
+```json
+[
+  {
+    "applicationId": "APP-001",
+    "productType": "UNSECURED_SALARIED_LOAN",
+    "applicantName": "Nguyen Van A",
+    "submissionDate": "2026-11-11",
+    "version": 1,
+    "versionCreatedAt": "2026-11-11T10:00:00Z",
+    "completenessStatus": "REVIEW_NEEDED",
+    "documents": [
+      {
+        "fileId": "generated-uuid",
+        "docType": "UNKNOWN",
+        "fileName": "cccd.pdf",
+        "contentType": "application/pdf",
+        "fileSize": 1024,
+        "fileHashSha256": "64-character-lowercase-hex",
+        "status": "PENDING",
+        "missingPeriod": null,
+        "pageCount": 0,
+        "pageAnchor": 0
+      }
+    ]
+  }
+]
+```
+
 ## Get the latest dossier version
 
 `GET /api/v1/dossiers/{applicationId}` returns the latest uploaded version:
@@ -59,6 +91,12 @@ The API returns `201 Created`, a `Location` header, the created dossier version,
 ```
 
 `docType`, document `status`, page data, and the overall completeness status are updated later by the OCR/Camunda workflow.
+
+## Get original document file content
+
+`GET /api/v1/dossiers/{applicationId}/files/{fileId}/content` streams the stored original binary file (`application/pdf`, `image/png`, or `image/jpeg`) with `Content-Disposition: inline; filename*=UTF-8''<fileName>` for in-browser PDF/image viewing.
+
+Returns `404 Not Found` if the `applicationId` does not exist or `fileId` does not belong to that application.
 
 ## Runtime configuration
 
