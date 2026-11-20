@@ -1,7 +1,9 @@
-"""Kiểm tra độ đầy đủ, độ nét và trích xuất thông tin CCCD Việt Nam (Tesseract + VietOCR + RegEx).
+"""
 
 Cách chạy:
     python ai/extractor/id_card_checker.py ai/classifier/sample/tin1.jpg ai/classifier/sample/tin2.jpg
+    lưu ý tin1, tin2 là ảnh thẻ CCCD mẫu, có thể thay bằng ảnh khác để kiểm tra 
+    các định dạng ảnh có thể nhận: .jpg, .jpeg, .png, .webp, .bmp và các file PDF 1 trang (nếu nhiều trang sẽ chỉ lấy trang đầu tiên)
 """
 
 from __future__ import annotations
@@ -140,7 +142,7 @@ def extract_cccd_number(text: str, gender: str | None = None, dob: str | None = 
 
 
 # ==============================================================================
-# 2. GIẢI MÃ & KIỂM TRA CHECKSUM MRZ 3 DÒNG (ICAO 9303 TD1)
+# 2. GIẢI MÃ & KIỂM TRA CHECKSUM MRZ 3 DÒNG
 # ==============================================================================
 
 _MRZ_VAL = {str(i): i for i in range(10)}
