@@ -4,8 +4,8 @@ package com.example.retail_loan_document_completeness_checker.models;
 public enum DocStatus {
     PENDING,
     VALID,
-    MISSING,
+    MISSING_BACK_SIDE,
     BLURRY,
     PERIOD_GAP,
-    NO_SIGNATURE
+    MISSING_SIGNATURE
 }

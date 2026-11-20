@@ -4,7 +4,7 @@ package com.example.retail_loan_document_completeness_checker.models;
 public enum DocType {
     UNKNOWN,
     NATIONAL_ID,
-    EMPLOYMENT_CONTRACT,
+    LABOR_CONTRACT,
     BANK_STATEMENT,
     LOAN_APPLICATION
 }
