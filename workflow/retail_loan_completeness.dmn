@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_RetailLoan" name="DRD" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" exporterVersion="5.28.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
-  <decision id="retail-loan-completeness-dmn" name="Đánh giá tính đầy đủ hồ sơ vay">
+  <decision id="retail_loan_completeness" name="Đánh giá tính đầy đủ hồ sơ vay">
     <decisionTable id="DecisionTable_1" hitPolicy="FIRST">
       <input id="Input_1" label="CCCD / CMND (nationalIdStatus)">
         <inputExpression id="InputExpression_1" typeRef="string">
@@ -22,7 +22,7 @@
           <text>loanApplicationStatus</text>
         </inputExpression>
       </input>
-      <output id="Output_1" label="Trạng thái hồ sơ (completenessStatus)" name="completenessStatus" typeRef="string" />
+      <output id="Output_1" label="Trạng thái hồ sơ (overallStatus)" name="overallStatus" type="string" />
       
       <!-- Luật 1: Thiếu giấy tờ hoặc thiếu trang bắt buộc -> INCOMPLETE -->
       <rule id="DecisionRule_1">
@@ -189,7 +189,7 @@
   </decision>
   <dmndi:DMNDI>
     <dmndi:DMNDiagram>
-      <dmndi:DMNShape dmnElementRef="retail-loan-completeness-dmn">
+      <dmndi:DMNShape dmnElementRef="retail_loan_completeness">
         <dc:Bounds height="80" width="180" x="160" y="100" />
       </dmndi:DMNShape>
     </dmndi:DMNDiagram>
