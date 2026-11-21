@@ -1,0 +1,23 @@
+{
+  "_note": "Tu khoa viet KHONG DAU, chu thuong. strong = diem 3, weak = diem 1. Chinh sua file nay sau khi doi chieu voi bo mau that cua nhom.",
+  "min_score": 3,
+  "min_margin": 2,
+  "classes": {
+    "NATIONAL_ID": {
+      "strong": ["can cuoc cong dan", "chung minh nhan dan", "so dinh danh ca nhan", "dac diem nhan dang", "cccd"],
+      "weak": ["ngay het han", "gia tri den", "noi cu tru", "que quan", "ngay sinh", "gioi tinh", "quoc tich"]
+    },
+    "LABOR_CONTRACT": {
+      "strong": ["hop dong lao dong", "nguoi su dung lao dong", "nguoi lao dong", "thoi han hop dong"],
+      "weak": ["muc luong", "chuc danh", "bao hiem xa hoi", "che do nghi", "dia diem lam viec", "thoi gio lam viec"]
+    },
+    "BANK_STATEMENT": {
+      "strong": ["sao ke", "so du dau ky", "so du cuoi ky", "ghi co", "ghi no"],
+      "weak": ["so tai khoan", "ngay giao dich", "giao dich", "so du", "luong"]
+    },
+    "LOAN_APPLICATION": {
+      "strong": ["don de nghi vay von", "don dang ky vay", "giay de nghi vay", "so tien vay", "muc dich vay", "thoi han vay"],
+      "weak": ["nguoi vay", "lai suat", "cam ket", "ky ten", "tai san bao dam"]
+    }
+  }
+}
