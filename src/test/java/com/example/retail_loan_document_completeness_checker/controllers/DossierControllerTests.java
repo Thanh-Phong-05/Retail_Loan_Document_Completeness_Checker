@@ -6,10 +6,13 @@ import com.example.retail_loan_document_completeness_checker.exceptions.DossierN
 import com.example.retail_loan_document_completeness_checker.models.CompletenessStatus;
 import com.example.retail_loan_document_completeness_checker.models.DocStatus;
 import com.example.retail_loan_document_completeness_checker.models.DocType;
+import com.example.retail_loan_document_completeness_checker.security.ConfirmAuthorizationService;
+import com.example.retail_loan_document_completeness_checker.security.ConfirmSecurityConfig;
 import com.example.retail_loan_document_completeness_checker.services.DossierService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -29,6 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(value = DossierController.class, properties = "debug=false")
+@Import({ConfirmSecurityConfig.class, ConfirmAuthorizationService.class})
 class DossierControllerTests {
 
     @Autowired

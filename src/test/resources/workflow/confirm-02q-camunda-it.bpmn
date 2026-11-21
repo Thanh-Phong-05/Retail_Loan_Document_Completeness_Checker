@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Dedicated to the opt-in real-engine integration test. Never deploy to a team cluster. -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+                  id="Definitions_Confirm02QCamundaIT" targetNamespace="http://bpmn.io/schema/bpmn"
+                  modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.10.0">
+  <bpmn:process id="retail-loan-confirm-02q-it" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_Confirm02QIT">
+      <bpmn:outgoing>Flow_ToConfirm</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Activity_03e0s8k" name="Isolated dossier confirmation">
+      <bpmn:extensionElements><zeebe:userTask /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToConfirm</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_Confirm02QIT">
+      <bpmn:incoming>Flow_ToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ToConfirm" sourceRef="StartEvent_Confirm02QIT" targetRef="Activity_03e0s8k" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Activity_03e0s8k" targetRef="EndEvent_Confirm02QIT" />
+  </bpmn:process>
+</bpmn:definitions>
