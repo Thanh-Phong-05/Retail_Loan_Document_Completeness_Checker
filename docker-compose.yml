@@ -62,5 +62,3 @@ services:
 networks:
   retail-loan-network:
     driver: bridge
-
-
