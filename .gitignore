@@ -37,25 +37,3 @@ uploads/
 
 ### Private personal work logs ###
 private-notes/
-
-### Python ###
-.venv/
-venv/
-env/
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
-.tox/
-.nox/
-*.egg-info/
-.eggs/
-dist/
-
-### Test reports and generated results ###
-coverage.xml
-test-results/
-report.xml
