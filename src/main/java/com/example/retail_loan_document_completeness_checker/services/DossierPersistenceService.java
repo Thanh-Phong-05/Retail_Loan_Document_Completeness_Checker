@@ -14,6 +14,13 @@ import com.example.retail_loan_document_completeness_checker.models.DossierVersi
 import com.example.retail_loan_document_completeness_checker.repositories.ApplicationRepository;
 import com.example.retail_loan_document_completeness_checker.repositories.AuditLogRepository;
 import com.example.retail_loan_document_completeness_checker.repositories.DocumentFileRepository;
+import com.example.retail_loan_document_completeness_checker.repositories.ConfirmOperationRepository;
+import com.example.retail_loan_document_completeness_checker.models.ConfirmOperation;
+import com.example.retail_loan_document_completeness_checker.models.WorkflowCorrelation;
+import com.example.retail_loan_document_completeness_checker.repositories.WorkflowCorrelationRepository;
+import com.example.retail_loan_document_completeness_checker.exceptions.ConfirmException;
+import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
 import com.example.retail_loan_document_completeness_checker.repositories.DossierVersionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -33,18 +40,38 @@ public class DossierPersistenceService {
     private final DossierVersionRepository dossierVersionRepository;
     private final AuditLogRepository auditLogRepository;
     private final DocumentFileRepository documentFileRepository;
+    private final ConfirmOperationRepository confirmOperations;
+    private final WorkflowCorrelationRepository workflowCorrelations;
+    @Value("${app.camunda.enabled:false}")
+    private boolean camundaEnabled;
+    @Value("${app.camunda.process-id:retail-loan-document-completeness}")
+    private String camundaProcessId;
+    @Value("${app.camunda.confirm-element-id:Activity_03e0s8k}")
+    private String confirmElementId;
 
     @Autowired
     public DossierPersistenceService(
             ApplicationRepository applicationRepository,
             DossierVersionRepository dossierVersionRepository,
             AuditLogRepository auditLogRepository,
-            DocumentFileRepository documentFileRepository
+            DocumentFileRepository documentFileRepository,
+            ConfirmOperationRepository confirmOperations,
+            WorkflowCorrelationRepository workflowCorrelations
     ) {
         this.applicationRepository = applicationRepository;
         this.dossierVersionRepository = dossierVersionRepository;
         this.auditLogRepository = auditLogRepository;
         this.documentFileRepository = documentFileRepository;
+        this.confirmOperations = confirmOperations;
+        this.workflowCorrelations = workflowCorrelations;
+    }
+
+    public DossierPersistenceService(ApplicationRepository applicationRepository,
+                                     DossierVersionRepository dossierVersionRepository,
+                                     AuditLogRepository auditLogRepository,
+                                     DocumentFileRepository documentFileRepository) {
+        this(applicationRepository, dossierVersionRepository, auditLogRepository,
+                documentFileRepository, null, null);
     }
 
     public DossierPersistenceService(
@@ -57,8 +84,15 @@ public class DossierPersistenceService {
 
     @Transactional
     public DossierResponse saveUpload(UploadDossierRequest request, List<StoredFile> storedFiles) {
-        Application application = applicationRepository.findById(request.applicationId())
+        Application application = applicationRepository.findByIdForUpdate(request.applicationId())
                 .orElseGet(() -> newApplication(request));
+        if (confirmOperations != null && confirmOperations.existsByApplicationIdAndStateIn(
+                request.applicationId(), List.of(ConfirmOperation.State.PENDING,
+                        ConfirmOperation.State.COMPLETING, ConfirmOperation.State.RECONCILING,
+                        ConfirmOperation.State.REQUIRES_INTERVENTION))) {
+            throw new ConfirmException(HttpStatus.CONFLICT, "CONFIRM_IN_PROGRESS",
+                    "Confirmation in progress", "Upload is blocked while workflow confirmation is unresolved");
+        }
         application.setProductType(request.productType());
         application.setApplicantName(request.applicantName());
         application.setSubmissionDate(LocalDate.now());
@@ -78,6 +112,18 @@ public class DossierPersistenceService {
 
         applicationRepository.save(application);
         auditLogRepository.save(uploadAuditLog(application, dossierVersion));
+        if (camundaEnabled) {
+            WorkflowCorrelation intent = new WorkflowCorrelation();
+            intent.setId(UUID.randomUUID().toString());
+            intent.setApplicationId(request.applicationId());
+            intent.setDossierVersion(nextVersion);
+            intent.setProcessId(camundaProcessId);
+            intent.setConfirmElementId(confirmElementId);
+            intent.setTenantId("<default>");
+            intent.setCreatedAt(Instant.now());
+            intent.setState(WorkflowCorrelation.State.START_PENDING);
+            workflowCorrelations.saveAndFlush(intent);
+        }
         return toResponse(application, dossierVersion);
     }
 

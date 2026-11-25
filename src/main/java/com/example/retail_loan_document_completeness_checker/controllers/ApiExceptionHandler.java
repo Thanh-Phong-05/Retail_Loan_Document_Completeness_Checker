@@ -1,6 +1,7 @@
 package com.example.retail_loan_document_completeness_checker.controllers;
 
 import com.example.retail_loan_document_completeness_checker.exceptions.DossierNotFoundException;
+import com.example.retail_loan_document_completeness_checker.exceptions.ConfirmException;
 import com.example.retail_loan_document_completeness_checker.exceptions.FileStorageException;
 import com.example.retail_loan_document_completeness_checker.exceptions.FileValidationException;
 import com.example.retail_loan_document_completeness_checker.exceptions.ProcessStartException;
@@ -13,6 +14,11 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    @ExceptionHandler(ConfirmException.class)
+    ProblemDetail confirmFailure(ConfirmException exception) {
+        return problem(exception.status(), exception.title(), exception.getMessage(), exception.code());
+    }
 
     @ExceptionHandler(DossierNotFoundException.class)
     ProblemDetail dossierNotFound(DossierNotFoundException exception) {
