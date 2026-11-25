@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_RetailLoan" name="DRD" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" exporterVersion="5.28.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <decision id="retail_loan_completeness" name="Đánh giá tính đầy đủ hồ sơ vay">
+    <decisionTable id="DecisionTable_1" hitPolicy="FIRST">
+      <input id="Input_1" label="CCCD / CMND (nationalIdStatus)">
+        <inputExpression id="InputExpression_1" typeRef="string">
+          <text>nationalIdStatus</text>
+        </inputExpression>
+      </input>
+      <input id="Input_2" label="Hợp đồng lao động (laborContractStatus)">
+        <inputExpression id="InputExpression_2" typeRef="string">
+          <text>laborContractStatus</text>
+        </inputExpression>
+      </input>
+      <input id="Input_3" label="Sao kê lương (bankStatementStatus)">
+        <inputExpression id="InputExpression_3" typeRef="string">
+          <text>bankStatementStatus</text>
+        </inputExpression>
+      </input>
+      <input id="Input_4" label="Đơn đề nghị vay vốn (loanApplicationStatus)">
+        <inputExpression id="InputExpression_4" typeRef="string">
+          <text>loanApplicationStatus</text>
+        </inputExpression>
+      </input>
+      <output id="Output_1" label="Trạng thái hồ sơ (overallStatus)" name="overallStatus" type="string" />
+      
+      <!-- Luật 1: Thiếu giấy tờ hoặc thiếu trang bắt buộc -> INCOMPLETE -->
+      <rule id="DecisionRule_1">
+        <description>Thiếu bất kỳ nhóm chứng từ nào hoặc CCCD thiếu mặt sau / Sao kê khuyết kỳ hạn</description>
+        <inputEntry id="UnaryTests_1a">
+          <text>"MISSING", "MISSING_BACK_SIDE"</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1b">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1c">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1d">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1">
+          <text>"INCOMPLETE"</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_2">
+        <inputEntry id="UnaryTests_2a">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_2b">
+          <text>"MISSING"</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_2c">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_2d">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_2">
+          <text>"INCOMPLETE"</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_3">
+        <inputEntry id="UnaryTests_3a">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_3b">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_3c">
+          <text>"MISSING", "PERIOD_GAP"</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_3d">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_3">
+          <text>"INCOMPLETE"</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_4">
+        <inputEntry id="UnaryTests_4a">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_4b">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_4c">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_4d">
+          <text>"MISSING"</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_4">
+          <text>"INCOMPLETE"</text>
+        </outputEntry>
+      </rule>
+
+      <!-- Luật 2: Đủ 4 nhóm nhưng có ảnh mờ hoặc thiếu chữ ký/mộc -> REVIEW_NEEDED -->
+      <rule id="DecisionRule_5">
+        <description>Có ít nhất 1 chứng từ bị mờ (BLURRY) hoặc thiếu chữ ký/dấu mộc (MISSING_SIGNATURE)</description>
+        <inputEntry id="UnaryTests_5a">
+          <text>"BLURRY", "MISSING_SIGNATURE"</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_5b">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_5c">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_5d">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_5">
+          <text>"REVIEW_NEEDED"</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_6">
+        <inputEntry id="UnaryTests_6a">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_6b">
+          <text>"BLURRY", "MISSING_SIGNATURE"</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_6c">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_6d">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_6">
+          <text>"REVIEW_NEEDED"</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_7">
+        <inputEntry id="UnaryTests_7a">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_7b">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_7c">
+          <text>"BLURRY", "MISSING_SIGNATURE"</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_7d">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_7">
+          <text>"REVIEW_NEEDED"</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_8">
+        <inputEntry id="UnaryTests_8a">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_8b">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_8c">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_8d">
+          <text>"BLURRY", "MISSING_SIGNATURE"</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_8">
+          <text>"REVIEW_NEEDED"</text>
+        </outputEntry>
+      </rule>
+
+      <!-- Luật 3: Cả 4 loại giấy tờ đều VALID -> READY_FOR_CREDIT_REVIEW -->
+      <rule id="DecisionRule_9">
+        <description>Toàn bộ 4 nhóm giấy tờ đạt chuẩn VALID</description>
+        <inputEntry id="UnaryTests_9a">
+          <text>"VALID"</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_9b">
+          <text>"VALID"</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_9c">
+          <text>"VALID"</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_9d">
+          <text>"VALID"</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_9">
+          <text>"READY_FOR_CREDIT_REVIEW"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram>
+      <dmndi:DMNShape dmnElementRef="retail_loan_completeness">
+        <dc:Bounds height="80" width="180" x="160" y="100" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

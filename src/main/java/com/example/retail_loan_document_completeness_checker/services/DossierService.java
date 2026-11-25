@@ -1,7 +1,10 @@
 package com.example.retail_loan_document_completeness_checker.services;
 
+import com.example.retail_loan_document_completeness_checker.dto.DocumentContent;
 import com.example.retail_loan_document_completeness_checker.dto.DossierResponse;
 import com.example.retail_loan_document_completeness_checker.dto.UploadDossierRequest;
+import com.example.retail_loan_document_completeness_checker.models.DocumentFile;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -40,5 +43,19 @@ public class DossierService {
 
     public DossierResponse getLatest(String applicationId) {
         return persistenceService.getLatest(applicationId);
+    }
+
+    public List<DossierResponse> getAllDossiers() {
+        return persistenceService.getAllLatest();
+    }
+
+    public DocumentContent getFileContent(String applicationId, String fileId) {
+        DocumentFile documentFile = persistenceService.getDocumentFile(applicationId, fileId);
+        Resource resource = fileStorageService.loadAsResource(documentFile.getStoredFileName());
+        return new DocumentContent(
+                resource,
+                documentFile.getFileName(),
+                documentFile.getContentType()
+        );
     }
 }
