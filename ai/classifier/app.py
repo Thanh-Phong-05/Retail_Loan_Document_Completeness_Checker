@@ -8,13 +8,23 @@ import os
 from statement_contract_checker import StatementContractChecker
 from classifier import process_documents 
 
+try:
+    from extractor.id_card_checker import IDCardChecker
+    id_checker = IDCardChecker()
+except ImportError:
+    try:
+        from ai.extractor.id_card_checker import IDCardChecker
+        id_checker = IDCardChecker()
+    except ImportError:
+        id_checker = None
+
 app = FastAPI(title="Retail Loan AI Analyzer API")
 statement_checker = StatementContractChecker()
 
 class FileData(BaseModel):
     fileId: str
     fileName: str
-    filePath: str
+    storagePath: str 
 
 class AnalyzeRequest(BaseModel):
     applicationId: str
@@ -27,8 +37,8 @@ async def analyze_dossier(request: AnalyzeRequest):
         raise HTTPException(status_code=400, detail="Không có file nào được cung cấp")
 
     for file in request.files:
-        if not os.path.exists(file.filePath):
-            raise HTTPException(status_code=404, detail=f"Không tìm thấy file: {file.filePath}")
+        if not os.path.exists(file.storagePath):
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy file: {file.storagePath}")
 
     pages_data = process_documents(request.files)
     if not pages_data:
@@ -45,27 +55,45 @@ async def analyze_dossier(request: AnalyzeRequest):
 
     if "BANK_STATEMENT" in grouped_pages:
         res = statement_checker.check_statement(grouped_pages["BANK_STATEMENT"])
-        results.append({"documentType": "BANK_STATEMENT", **res})
+        results.append({
+            "documentClass": "BANK_STATEMENT",
+            "status": res["status"],
+            "pages": grouped_pages["BANK_STATEMENT"],
+            "details": res.get("details", ""),
+            "missingMonths": res.get("missing_months", [])
+        })
 
     for contract_type in ["LABOR_CONTRACT", "LOAN_APPLICATION"]:
         if contract_type in grouped_pages:
             res = statement_checker.check_contract(grouped_pages[contract_type])
-            results.append({"documentType": contract_type, **res})
+            results.append({
+                "documentClass": contract_type,
+                "status": res["status"],
+                "pages": grouped_pages[contract_type],
+                "details": res.get("details", "")
+            })
 
-    # Mock CCCD (Chờ Java link với Tín)
     if "NATIONAL_ID" in grouped_pages:
-        results.append({
-            "documentType": "NATIONAL_ID",
-            "status": "VALID", 
-            "pageAnchor": "page_cccd",
-            "details": "Mock data (Java sẽ link với kết quả của Tín)"
-        })
+        if id_checker:
+            cccd_res = id_checker.check_pages(grouped_pages["NATIONAL_ID"])
+            results.append({
+                "documentClass": "NATIONAL_ID",
+                "status": cccd_res.status,
+                "pages": grouped_pages["NATIONAL_ID"],
+                "details": getattr(cccd_res, 'details', "Đã check CCCD")
+            })
+        else:
+            results.append({
+                "documentClass": "NATIONAL_ID",
+                "status": "UNKNOWN",
+                "pages": grouped_pages["NATIONAL_ID"],
+                "details": "Chưa tìm thấy module id_card_checker của Tín"
+            })
 
     return {
-        "success": True,
         "applicationId": request.applicationId,
-        "analyzedAt": datetime.utcnow().isoformat() + "Z",
-        "data": results
+        "dossierVersion": request.dossierVersion,
+        "results": results
     }
 
 if __name__ == "__main__":
