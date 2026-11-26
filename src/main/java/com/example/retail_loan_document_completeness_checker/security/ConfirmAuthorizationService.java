@@ -8,6 +8,17 @@ import org.springframework.stereotype.Service;
 @Service
 public class ConfirmAuthorizationService {
 
+    /** The HTTP API is public; every Confirm mutation/status read must enforce this service boundary. */
+    public void requireAccess(Authentication actor, String applicationId) {
+        Outcome outcome = evaluate(actor, applicationId);
+        if (outcome == Outcome.AUTHORIZED) return;
+        boolean anonymous = outcome == Outcome.UNAUTHENTICATED;
+        throw new com.example.retail_loan_document_completeness_checker.exceptions.ConfirmException(
+                anonymous ? org.springframework.http.HttpStatus.UNAUTHORIZED : org.springframework.http.HttpStatus.FORBIDDEN,
+                anonymous ? "CONFIRM_AUTHENTICATION_REQUIRED" : "CONFIRM_ACCESS_DENIED",
+                "Confirmation access denied", "A trusted reviewer with access to this dossier is required");
+    }
+
     private final ObjectProvider<ConfirmCaseScope> caseScope;
 
     public ConfirmAuthorizationService(ObjectProvider<ConfirmCaseScope> caseScope) {

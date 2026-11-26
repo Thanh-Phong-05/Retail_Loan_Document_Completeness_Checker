@@ -14,7 +14,7 @@ import com.example.retail_loan_document_completeness_checker.repositories.AuditL
 import com.example.retail_loan_document_completeness_checker.repositories.ConfirmOperationRepository;
 import com.example.retail_loan_document_completeness_checker.repositories.WorkflowCorrelationRepository;
 import com.example.retail_loan_document_completeness_checker.security.ConfirmCaseScope;
-import com.example.retail_loan_document_completeness_checker.services.Camunda810UserTaskClient;
+import com.example.retail_loan_document_completeness_checker.services.Camunda85UserTaskClient;
 import com.example.retail_loan_document_completeness_checker.services.ConfirmEligibilityService;
 import com.example.retail_loan_document_completeness_checker.services.ConfirmReviewFactsSource;
 import com.example.retail_loan_document_completeness_checker.services.DurableConfirmCoordinator;
@@ -72,7 +72,7 @@ class DurableConfirmSqlServerIT {
     @Autowired DurableConfirmCoordinator coordinator;
     @MockitoBean ConfirmCaseScope scope;
     @MockitoBean ConfirmReviewFactsSource reviewFacts;
-    @MockitoBean Camunda810UserTaskClient tasks;
+    @MockitoBean Camunda85UserTaskClient tasks;
     @MockitoSpyBean AuditLogRepository auditSpy;
 
     @Test
@@ -198,10 +198,10 @@ class DurableConfirmSqlServerIT {
                 .andExpect(status().isBadRequest());
         assertThat(operations.findByApplicationIdAndDossierVersion(app, 1)).isEmpty();
 
-        given(tasks.lookup(any())).willReturn(new Camunda810UserTaskClient.Lookup(
-                Camunda810UserTaskClient.LookupState.OPEN, 300L));
+        given(tasks.lookup(any())).willReturn(new Camunda85UserTaskClient.Lookup(
+                Camunda85UserTaskClient.LookupState.OPEN, 300L));
         given(tasks.complete(any(), eq(300L), any()))
-                .willReturn(Camunda810UserTaskClient.CompletionState.COMPLETED);
+                .willReturn(Camunda85UserTaskClient.CompletionState.COMPLETED);
         given(tasks.completedBy(any(), eq(300L), anyString())).willReturn(false);
         mvc.perform(confirmWithText(app, reviewer, note))
                 .andExpect(status().isAccepted());
@@ -225,9 +225,9 @@ class DurableConfirmSqlServerIT {
     }
 
     private ConfirmOperation admitReconciling(String app) throws Exception {
-        given(tasks.lookup(any())).willReturn(new Camunda810UserTaskClient.Lookup(
-                Camunda810UserTaskClient.LookupState.OPEN, 300L));
-        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda810UserTaskClient.CompletionState.COMPLETED);
+        given(tasks.lookup(any())).willReturn(new Camunda85UserTaskClient.Lookup(
+                Camunda85UserTaskClient.LookupState.OPEN, 300L));
+        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda85UserTaskClient.CompletionState.COMPLETED);
         given(tasks.completedBy(any(), eq(300L), anyString())).willReturn(false);
         mvc.perform(confirm(app, 1)).andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.state").value("RECONCILING"));

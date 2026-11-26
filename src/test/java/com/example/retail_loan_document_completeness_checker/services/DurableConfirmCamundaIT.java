@@ -9,9 +9,7 @@ import com.example.retail_loan_document_completeness_checker.repositories.AuditL
 import com.example.retail_loan_document_completeness_checker.repositories.ConfirmOperationRepository;
 import com.example.retail_loan_document_completeness_checker.repositories.WorkflowCorrelationRepository;
 import com.example.retail_loan_document_completeness_checker.security.ConfirmCaseScope;
-import io.camunda.client.CamundaClient;
-import io.camunda.client.api.search.enums.ProcessInstanceState;
-import io.camunda.client.api.search.enums.UserTaskState;
+import io.camunda.zeebe.client.ZeebeClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Opt in with -Dtest=DurableConfirmCamundaIT against an isolated Camunda 8.10.9 cluster.
+ * Opt in with -Dtest=DurableConfirmCamundaIT against an isolated Camunda 8.5.0 cluster.
  * Surefire's default *Tests pattern does not select this *IT class during mvn test.
  * No Camunda component is mocked. Authentication and review facts are synthetic test-only fixtures.
  */
@@ -51,8 +49,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.camunda.process-id=retail-loan-confirm-02q-it",
         "app.camunda.confirm-element-id=Activity_03e0s8k",
         "app.camunda.confirm-recovery-ms=600000",
-        "camunda.client.grpc-address=${CAMUNDA_IT_GRPC_ADDRESS:http://127.0.0.1:26500}",
-        "camunda.client.rest-address=${CAMUNDA_IT_REST_ADDRESS:http://127.0.0.1:8088}",
+        "camunda.client.zeebe.gateway-url=${CAMUNDA_IT_GRPC_ADDRESS:http://127.0.0.1:27500}",
+        "camunda.client.zeebe.base-url=${CAMUNDA_IT_REST_ADDRESS:http://127.0.0.1:18088}",
+        "camunda.client.operate.base-url=${CAMUNDA_IT_OPERATE_ADDRESS:http://127.0.0.1:18091}",
+        "camunda.client.tasklist.base-url=${CAMUNDA_IT_TASKLIST_ADDRESS:http://127.0.0.1:18092}",
         "spring.datasource.url=jdbc:h2:mem:durable-confirm-camunda-it;MODE=MSSQLServer;DB_CLOSE_DELAY=-1"
 })
 @AutoConfigureMockMvc
@@ -63,8 +63,9 @@ class DurableConfirmCamundaIT {
     private static final Duration API_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration INDEX_TIMEOUT = Duration.ofSeconds(60);
 
-    @Autowired CamundaClient engine;
-    @Autowired Camunda810UserTaskClient taskClient;
+    @Autowired ZeebeClient engine;
+    @Autowired Camunda85QueryClient queries;
+    @Autowired Camunda85UserTaskClient taskClient;
     @Autowired ZeebeDossierProcessStarter processStarter;
     @Autowired DossierPersistenceService persistence;
     @Autowired DurableConfirmCoordinator coordinator;
@@ -79,12 +80,12 @@ class DurableConfirmCamundaIT {
     @Test
     void realNativeUserTaskCompletesOnceAndFinalizesOneAudit() throws Exception {
         assertThat(System.getenv("CAMUNDA_IT_ISOLATED"))
-                .as("Set CAMUNDA_IT_ISOLATED=true only for a separately owned Camunda 8.10.9 test cluster")
+                .as("Set CAMUNDA_IT_ISOLATED=true only for a separately owned Camunda 8.5.0 test cluster")
                 .isEqualTo("true");
         var topology = engine.newTopologyRequest().requestTimeout(API_TIMEOUT).send().join();
-        assertThat(topology.getGatewayVersion()).startsWith("8.10.9");
+        assertThat(topology.getGatewayVersion()).isEqualTo("8.5.0");
         assertThat(topology.getBrokers()).isNotEmpty()
-                .allSatisfy(broker -> assertThat(broker.getVersion()).startsWith("8.10.9"));
+                .allSatisfy(broker -> assertThat(broker.getVersion()).isEqualTo("8.5.0"));
 
         var deployment = engine.newDeployResourceCommand()
                 .addResourceFromClasspath("workflow/confirm-02q-camunda-it.bpmn")
@@ -114,19 +115,24 @@ class DurableConfirmCamundaIT {
         assertThat(started.getProcessDefinitionKey()).isEqualTo(definition.getProcessDefinitionKey());
         assertThat(started.getProcessDefinitionVersion()).isEqualTo(definition.getVersion());
 
-        var expected = new Camunda810UserTaskClient.Correlation(applicationId, 1,
+        var expected = new Camunda85UserTaskClient.Correlation(applicationId, 1,
                 started.getProcessInstanceKey(), started.getProcessDefinitionKey(),
                 started.getProcessId(), started.getConfirmElementId(), started.getTenantId());
         var open = await("OPEN native User Task", INDEX_TIMEOUT, () -> taskClient.lookup(expected),
-                lookup -> lookup.state() == Camunda810UserTaskClient.LookupState.OPEN);
-        var task = engine.newUserTaskGetRequest(open.taskKey()).requestTimeout(API_TIMEOUT).send().join();
-        assertThat(task.getState()).isEqualTo(UserTaskState.CREATED);
-        assertThat(task.getProcessInstanceKey()).isEqualTo(started.getProcessInstanceKey());
-        assertThat(task.getProcessDefinitionKey()).isEqualTo(started.getProcessDefinitionKey());
-        assertThat(task.getProcessDefinitionVersion()).isEqualTo(started.getProcessDefinitionVersion());
-        assertThat(task.getBpmnProcessId()).isEqualTo(PROCESS_ID);
-        assertThat(task.getElementId()).isEqualTo(TASK_ID);
-        assertThat(task.getTenantId()).isEqualTo(started.getTenantId());
+                lookup -> lookup.state() == Camunda85UserTaskClient.LookupState.OPEN);
+        var task = queries.task(open.taskKey());
+        assertThat(task.path("taskState").asString()).isEqualTo("CREATED");
+        assertThat(task.path("processInstanceKey").asLong()).isEqualTo(started.getProcessInstanceKey());
+        assertThat(task.path("processDefinitionKey").asLong()).isEqualTo(started.getProcessDefinitionKey());
+        assertThat(task.path("taskDefinitionId").asString()).isEqualTo(TASK_ID);
+        assertThat(task.path("tenantId").asString()).isEqualTo(started.getTenantId());
+        var process = queries.process(started.getProcessInstanceKey());
+        assertThat(process.path("bpmnProcessId").asString()).isEqualTo(PROCESS_ID);
+        assertThat(process.path("processVersion").asInt()).isEqualTo(started.getProcessDefinitionVersion());
+
+        var recoveredProcesses = await("unique persisted start-intent marker", INDEX_TIMEOUT,
+                () -> queries.processesForStartIntent(started.getId()), matches -> matches.size() == 1);
+        assertThat(recoveredProcesses.get(0).path("key").asLong()).isEqualTo(started.getProcessInstanceKey());
 
         given(caseScope.mayConfirm(any(), eq(applicationId))).willAnswer(invocation ->
                 "reviewer-it".equals(((org.springframework.security.core.Authentication)
@@ -169,12 +175,11 @@ class DurableConfirmCamundaIT {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.state").value("COMPLETED"));
 
         await("completed engine User Task", INDEX_TIMEOUT,
-                () -> engine.newUserTaskGetRequest(open.taskKey()).requestTimeout(API_TIMEOUT).send().join().getState(),
-                state -> state == UserTaskState.COMPLETED);
+                () -> queries.task(open.taskKey()).path("taskState").asString(),
+                state -> "COMPLETED".equals(state));
         await("process advanced to end event", INDEX_TIMEOUT,
-                () -> engine.newProcessInstanceGetRequest(started.getProcessInstanceKey())
-                        .requestTimeout(API_TIMEOUT).send().join().getState(),
-                state -> state == ProcessInstanceState.COMPLETED);
+                () -> queries.process(started.getProcessInstanceKey()).path("state").asString(),
+                state -> "COMPLETED".equals(state));
         assertThat(taskClient.completedBy(expected, open.taskKey(), completed.getId())).isTrue();
 
         mvc.perform(confirm(applicationId, 1)).andExpect(status().isConflict())

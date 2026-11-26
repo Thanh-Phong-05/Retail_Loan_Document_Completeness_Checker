@@ -2,10 +2,9 @@ package com.example.retail_loan_document_completeness_checker.services;
 
 import com.example.retail_loan_document_completeness_checker.models.WorkflowCorrelation;
 import com.example.retail_loan_document_completeness_checker.repositories.WorkflowCorrelationRepository;
-import io.camunda.client.CamundaClient;
-import io.camunda.client.api.response.ProcessInstanceEvent;
-import io.camunda.client.api.search.response.ProcessInstance;
-import io.camunda.client.api.search.response.SearchResponse;
+import io.camunda.zeebe.client.ZeebeClient;
+import io.camunda.zeebe.client.api.response.ProcessInstanceEvent;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -26,10 +25,11 @@ import static org.mockito.Mockito.when;
 class ZeebeDossierProcessStarterTests {
     private static final String PROCESS = "retail-loan-document-completeness";
     private static final String ELEMENT = "Activity_03e0s8k";
-    private final CamundaClient engine = mock(CamundaClient.class, RETURNS_DEEP_STUBS);
+    private final ZeebeClient engine = mock(ZeebeClient.class, RETURNS_DEEP_STUBS);
     private final WorkflowCorrelationRepository repository = mock(WorkflowCorrelationRepository.class);
+    private final Camunda85QueryClient queries = mock(Camunda85QueryClient.class);
     private final ZeebeDossierProcessStarter starter = new ZeebeDossierProcessStarter(
-            engine, repository, PROCESS, ELEMENT);
+            engine, queries, repository, PROCESS, ELEMENT);
 
     @Test
     void storesActualEngineProcessKeysAfterDurableIntent() {
@@ -42,7 +42,7 @@ class ZeebeDossierProcessStarterTests {
         when(created.getVersion()).thenReturn(7);
         when(created.getTenantId()).thenReturn("<default>");
         when(engine.newCreateInstanceCommand().bpmnProcessId(PROCESS).latestVersion()
-                .businessId("APP-1:3").variables(anyMap()).send().join()).thenReturn(created);
+                .variables(anyMap()).send().join()).thenReturn(created);
 
         starter.start("APP-1", 3);
         assertThat(intent.getState()).isEqualTo(WorkflowCorrelation.State.STARTED);
@@ -60,25 +60,32 @@ class ZeebeDossierProcessStarterTests {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    void reconcilesLostCreateResponseByUniqueBusinessIdWithoutStartingAnotherProcess() {
+    void reconcilesLostCreateResponseByPersistedIntentWithoutStartingAnotherProcess() {
         WorkflowCorrelation intent = intent();
         when(repository.findByState(WorkflowCorrelation.State.START_PENDING)).thenReturn(List.of(intent));
-        ProcessInstance found = mock(ProcessInstance.class);
-        when(found.getBusinessId()).thenReturn("APP-1:3");
-        when(found.getProcessDefinitionId()).thenReturn(PROCESS);
-        when(found.getProcessInstanceKey()).thenReturn(501L);
-        when(found.getProcessDefinitionKey()).thenReturn(601L);
-        when(found.getProcessDefinitionVersion()).thenReturn(7);
-        when(found.getTenantId()).thenReturn("<default>");
-        SearchResponse<ProcessInstance> response = mock(SearchResponse.class);
-        when(response.items()).thenReturn(List.of(found));
-        when(engine.newProcessInstanceSearchRequest().filter(any(java.util.function.Consumer.class))
-                .page(any(java.util.function.Consumer.class)).requestTimeout(any()).send().join()).thenReturn(response);
+        var json = JsonMapper.builder().build();
+        var found = json.readTree("""
+                {"key":501,"processDefinitionKey":601,"processVersion":7,
+                 "bpmnProcessId":"retail-loan-document-completeness","tenantId":"<default>"}
+                """);
+        when(queries.processesForStartIntent("synthetic-intent")).thenReturn(List.of(found));
+        when(queries.rootVariable(501, "applicationId", "<default>")).thenReturn(json.readTree("\"APP-1\""));
+        when(queries.rootVariable(501, "dossierVersion", "<default>")).thenReturn(json.readTree("3"));
 
         starter.reconcileStarts();
         assertThat(intent.getState()).isEqualTo(WorkflowCorrelation.State.STARTED);
         assertThat(intent.getProcessInstanceKey()).isEqualTo(501L);
+        verify(engine, never()).newCreateInstanceCommand();
+    }
+
+    @Test
+    void ambiguousStartRemainsInterventionAndIsNeverRecreated() {
+        WorkflowCorrelation intent = intent();
+        when(repository.findByState(WorkflowCorrelation.State.START_PENDING)).thenReturn(List.of(intent));
+        var process = JsonMapper.builder().build().readTree("{\"key\":501}");
+        when(queries.processesForStartIntent(intent.getId())).thenReturn(List.of(process, process));
+        starter.reconcileStarts();
+        assertThat(intent.getState()).isEqualTo(WorkflowCorrelation.State.REQUIRES_INTERVENTION);
         verify(engine, never()).newCreateInstanceCommand();
     }
 

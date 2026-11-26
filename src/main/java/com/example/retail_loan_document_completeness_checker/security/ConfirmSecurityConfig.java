@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -28,17 +27,13 @@ public class ConfirmSecurityConfig {
                     && requestPath(request).matches("/api/v1/dossiers/[^/]+/confirm-operations/[^/]+"));
 
     @Bean
-    SecurityFilterChain confirmSecurityFilterChain(HttpSecurity http,
-            ConfirmAuthorizationService authorizationService) throws Exception {
-        http.securityMatcher(CONFIRM_ROUTES)
+    SecurityFilterChain confirmSecurityFilterChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/api/v1/**")
                 .cors(Customizer.withDefaults())
-                .authorizeHttpRequests(requests -> requests.anyRequest().access((authentication, context) -> {
-                    String path = requestPath(context.getRequest());
-                    String suffix = path.substring("/api/v1/dossiers/".length());
-                    String applicationId = suffix.substring(0, suffix.indexOf('/'));
-                    return new AuthorizationDecision(authorizationService.evaluate(authentication.get(), applicationId)
-                            == ConfirmAuthorizationService.Outcome.AUTHORIZED);
-                }))
+                .authorizeHttpRequests(requests -> requests.anyRequest().permitAll())
+                // Preserve the existing CSRF boundary: Confirm POST, not the previously unfiltered upload API.
+                .csrf(csrf -> csrf.requireCsrfProtectionMatcher(request ->
+                        HttpMethod.POST.matches(request.getMethod()) && CONFIRM_ROUTES.matches(request)))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, exception) -> sendProblem(response,
                                 HttpStatus.UNAUTHORIZED, "Confirmation authentication required",

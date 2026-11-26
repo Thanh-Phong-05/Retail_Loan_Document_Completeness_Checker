@@ -128,13 +128,15 @@ class DossierConfirmControllerTests {
     }
 
     @Test
-    void selfDeclaredReviewerNameDoesNotGrantConfirmation() throws Exception {
+    void anonymousRequestCannotBypassUnavailableConfirmService() throws Exception {
         mockMvc.perform(post(CONFIRM_PATH).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"reviewerName":"Chief Officer","note":null,"expectedVersion":3}
                                 """))
-                .andExpect(status().isUnauthorized());
+                // HTTP is public. This MVC slice has no Confirm service; real service auth is tested separately.
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("DOSSIER_CONFIRMATION_UNAVAILABLE"));
         verifyNoInteractions(dossierService);
     }
 

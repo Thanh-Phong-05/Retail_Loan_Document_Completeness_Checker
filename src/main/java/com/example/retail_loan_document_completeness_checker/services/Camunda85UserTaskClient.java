@@ -1,22 +1,18 @@
 package com.example.retail_loan_document_completeness_checker.services;
 
-import io.camunda.client.CamundaClient;
-import io.camunda.client.api.search.enums.UserTaskState;
-import io.camunda.client.api.search.response.UserTask;
-import io.camunda.client.api.search.response.Variable;
+import io.camunda.zeebe.client.ZeebeClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** Camunda 8.10 Orchestration Cluster API. Empty search is never proof of absence. */
+/** Camunda 8.5 native User Tasks. Empty search is never proof of absence. */
 @Component
 @ConditionalOnProperty(name = "app.camunda.enabled", havingValue = "true")
-public final class Camunda810UserTaskClient {
+public final class Camunda85UserTaskClient {
 
     public enum LookupState { OPEN, ALREADY_COMPLETED, UNKNOWN, LOOKUP_FAILED, MULTIPLE_MATCHES, WRONG_CASE_OR_VERSION }
     public enum CompletionState { COMPLETED, ALREADY_COMPLETED, WRONG_TASK, UNKNOWN }
@@ -44,30 +40,29 @@ public final class Camunda810UserTaskClient {
         }
     }
 
-    private final CamundaClient client;
+    private final ZeebeClient client;
+    private final Camunda85QueryClient queries;
     private final Duration timeout;
 
     @Autowired
-    public Camunda810UserTaskClient(CamundaClient client) {
-        this(client, Duration.ofSeconds(5));
+    public Camunda85UserTaskClient(ZeebeClient client, Camunda85QueryClient queries) {
+        this(client, queries, Duration.ofSeconds(5));
     }
 
-    Camunda810UserTaskClient(CamundaClient client, Duration timeout) {
+    Camunda85UserTaskClient(ZeebeClient client, Camunda85QueryClient queries, Duration timeout) {
         this.client = Objects.requireNonNull(client);
+        this.queries = Objects.requireNonNull(queries);
         this.timeout = Objects.requireNonNull(timeout);
     }
 
     public Lookup lookup(Correlation correlation) {
         try {
-            List<UserTask> tasks = client.newUserTaskSearchRequest()
-                    .filter(filter -> filter.processInstanceKey(correlation.processInstanceKey())
-                            .elementId(correlation.elementId()))
-                    .page(page -> page.limit(2))
-                    .requestTimeout(timeout).send().join().items();
-            if (tasks == null || tasks.isEmpty()) return new Lookup(LookupState.UNKNOWN, null);
+            var tasks = queries.tasks(correlation.processInstanceKey(), correlation.elementId());
+            if (tasks == null || !tasks.isArray()) return new Lookup(LookupState.LOOKUP_FAILED, null);
+            if (tasks.isEmpty()) return new Lookup(LookupState.UNKNOWN, null);
             if (tasks.size() != 1) return new Lookup(LookupState.MULTIPLE_MATCHES, null);
-            Long key = tasks.get(0).getUserTaskKey();
-            return key == null || key <= 0 ? new Lookup(LookupState.LOOKUP_FAILED, null) : get(correlation, key);
+            long key = tasks.get(0).path("id").asLong();
+            return key <= 0 ? new Lookup(LookupState.LOOKUP_FAILED, null) : get(correlation, key);
         } catch (RuntimeException exception) {
             return new Lookup(LookupState.LOOKUP_FAILED, null);
         }
@@ -76,19 +71,23 @@ public final class Camunda810UserTaskClient {
     public Lookup get(Correlation correlation, long taskKey) {
         if (taskKey <= 0) throw new IllegalArgumentException("taskKey must be positive");
         try {
-            UserTask task = client.newUserTaskGetRequest(taskKey).requestTimeout(timeout).send().join();
+            var task = queries.task(taskKey);
             if (task == null) return new Lookup(LookupState.LOOKUP_FAILED, null);
-            if (!Objects.equals(task.getUserTaskKey(), taskKey)
-                    || !Objects.equals(task.getProcessInstanceKey(), correlation.processInstanceKey())
-                    || !Objects.equals(task.getProcessDefinitionKey(), correlation.processDefinitionKey())
-                    || !Objects.equals(task.getBpmnProcessId(), correlation.processId())
-                    || !Objects.equals(task.getElementId(), correlation.elementId())
-                    || !Objects.equals(task.getTenantId(), correlation.tenantId())
+            var process = queries.process(correlation.processInstanceKey());
+            if (task.path("id").asLong() != taskKey
+                    || task.path("processInstanceKey").asLong() != correlation.processInstanceKey()
+                    || task.path("processDefinitionKey").asLong() != correlation.processDefinitionKey()
+                    || !correlation.elementId().equals(task.path("taskDefinitionId").asString())
+                    || !correlation.tenantId().equals(task.path("tenantId").asString())
+                    || process.path("key").asLong() != correlation.processInstanceKey()
+                    || process.path("processDefinitionKey").asLong() != correlation.processDefinitionKey()
+                    || !correlation.processId().equals(process.path("bpmnProcessId").asString())
+                    || !correlation.tenantId().equals(process.path("tenantId").asString())
                     || !matchesVariables(correlation)) {
                 return new Lookup(LookupState.WRONG_CASE_OR_VERSION, null);
             }
-            if (task.getState() == UserTaskState.CREATED) return new Lookup(LookupState.OPEN, taskKey);
-            if (task.getState() == UserTaskState.COMPLETED) return new Lookup(LookupState.ALREADY_COMPLETED, taskKey);
+            if ("CREATED".equals(task.path("taskState").asString())) return new Lookup(LookupState.OPEN, taskKey);
+            if ("COMPLETED".equals(task.path("taskState").asString())) return new Lookup(LookupState.ALREADY_COMPLETED, taskKey);
             return new Lookup(LookupState.UNKNOWN, null);
         } catch (RuntimeException exception) {
             return new Lookup(LookupState.LOOKUP_FAILED, null);
@@ -102,7 +101,7 @@ public final class Camunda810UserTaskClient {
         if (current.state() == LookupState.WRONG_CASE_OR_VERSION) return CompletionState.WRONG_TASK;
         if (current.state() != LookupState.OPEN) return CompletionState.UNKNOWN;
         try {
-            client.newCompleteUserTaskCommand(taskKey).variables(Map.copyOf(variables))
+            client.newUserTaskCompleteCommand(taskKey).variables(Map.copyOf(variables))
                     .requestTimeout(timeout).send().join();
             return CompletionState.COMPLETED;
         } catch (RuntimeException exception) {
@@ -114,29 +113,18 @@ public final class Camunda810UserTaskClient {
     public boolean completedBy(Correlation correlation, long taskKey, String operationId) {
         if (get(correlation, taskKey).state() != LookupState.ALREADY_COMPLETED) return false;
         try {
-            List<Variable> variables = client.newVariableSearchRequest()
-                    .filter(filter -> filter.processInstanceKey(correlation.processInstanceKey())
-                            .scopeKey(correlation.processInstanceKey()))
-                    .page(page -> page.limit(100)).requestTimeout(timeout).send().join().items();
-            if (variables == null) return false;
-            List<Variable> markers = variables.stream()
-                    .filter(variable -> "confirmOperationId".equals(variable.getName())).toList();
-            return markers.size() == 1 && operationId.equals(markers.get(0).getValueAsType(String.class));
+            var marker = queries.rootVariable(correlation.processInstanceKey(), "confirmOperationId", correlation.tenantId());
+            return marker.isString() && operationId.equals(marker.asString());
         } catch (RuntimeException exception) {
             return false;
         }
     }
 
     private boolean matchesVariables(Correlation correlation) {
-        List<Variable> variables = client.newVariableSearchRequest()
-                .filter(filter -> filter.processInstanceKey(correlation.processInstanceKey())
-                        .scopeKey(correlation.processInstanceKey()))
-                .page(page -> page.limit(100)).requestTimeout(timeout).send().join().items();
-        if (variables == null) return false;
-        List<Variable> ids = variables.stream().filter(v -> "applicationId".equals(v.getName())).toList();
-        List<Variable> versions = variables.stream().filter(v -> "dossierVersion".equals(v.getName())).toList();
-        return ids.size() == 1 && versions.size() == 1
-                && correlation.applicationId().equals(ids.get(0).getValueAsType(String.class))
-                && Objects.equals(correlation.dossierVersion(), versions.get(0).getValueAsType(Long.class));
+        var id = queries.rootVariable(correlation.processInstanceKey(), "applicationId", correlation.tenantId());
+        var version = queries.rootVariable(correlation.processInstanceKey(), "dossierVersion", correlation.tenantId());
+        return id.isString() && correlation.applicationId().equals(id.asString())
+                && version.isIntegralNumber() && version.canConvertToLong()
+                && correlation.dossierVersion() == version.asLong();
     }
 }
