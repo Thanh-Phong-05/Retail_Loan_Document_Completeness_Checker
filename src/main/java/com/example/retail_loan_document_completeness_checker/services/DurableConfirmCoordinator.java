@@ -48,7 +48,7 @@ public class DurableConfirmCoordinator {
     private final WorkflowCorrelationRepository correlations;
     private final ConfirmEligibilityFactsProvider persistedFacts;
     private final ObjectProvider<ConfirmReviewFactsSource> reviewFactsSources;
-    private final Camunda810UserTaskClient tasks;
+    private final Camunda85UserTaskClient tasks;
     private final TransactionTemplate transactions;
     private final ConfirmEligibilityService eligibility = new ConfirmEligibilityService();
 
@@ -60,7 +60,7 @@ public class DurableConfirmCoordinator {
                                      WorkflowCorrelationRepository correlations,
                                      ConfirmEligibilityFactsProvider persistedFacts,
                                      ObjectProvider<ConfirmReviewFactsSource> reviewFactsSources,
-                                     Camunda810UserTaskClient tasks,
+                                     Camunda85UserTaskClient tasks,
                                      PlatformTransactionManager transactionManager) {
         this.authorization = authorization;
         this.applications = applications;
@@ -209,19 +209,19 @@ public class DurableConfirmCoordinator {
             intervention(operationId, "PROCESS_CORRELATION_MISSING");
             return;
         }
-        var expected = new Camunda810UserTaskClient.Correlation(operation.getApplicationId(),
+        var expected = new Camunda85UserTaskClient.Correlation(operation.getApplicationId(),
                 operation.getDossierVersion(), correlation.getProcessInstanceKey(),
                 correlation.getProcessDefinitionKey(), correlation.getProcessId(),
                 correlation.getConfirmElementId(), correlation.getTenantId());
         if (operation.getUserTaskKey() == null) {
             var lookup = tasks.lookup(expected);
-            if (lookup.state() == Camunda810UserTaskClient.LookupState.WRONG_CASE_OR_VERSION
-                    || lookup.state() == Camunda810UserTaskClient.LookupState.MULTIPLE_MATCHES
-                    || lookup.state() == Camunda810UserTaskClient.LookupState.ALREADY_COMPLETED) {
+            if (lookup.state() == Camunda85UserTaskClient.LookupState.WRONG_CASE_OR_VERSION
+                    || lookup.state() == Camunda85UserTaskClient.LookupState.MULTIPLE_MATCHES
+                    || lookup.state() == Camunda85UserTaskClient.LookupState.ALREADY_COMPLETED) {
                 intervention(operationId, lookup.state().name());
                 return;
             }
-            if (lookup.state() != Camunda810UserTaskClient.LookupState.OPEN) {
+            if (lookup.state() != Camunda85UserTaskClient.LookupState.OPEN) {
                 recordRecoverableError(operationId, lookup.state().name());
                 return;
             }
@@ -243,16 +243,16 @@ public class DurableConfirmCoordinator {
                 ConfirmOperation locked = operations.findByIdForUpdate(operationId).orElseThrow();
                 if (locked.getState() == ConfirmOperation.State.COMPLETING) {
                     locked.setState(ConfirmOperation.State.RECONCILING);
-                    locked.setLastError(result == Camunda810UserTaskClient.CompletionState.COMPLETED
+                    locked.setLastError(result == Camunda85UserTaskClient.CompletionState.COMPLETED
                             ? null : result.name());
                     locked.setUpdatedAt(Instant.now());
                 }
             });
-            if (result == Camunda810UserTaskClient.CompletionState.WRONG_TASK) {
+            if (result == Camunda85UserTaskClient.CompletionState.WRONG_TASK) {
                 intervention(operationId, "WRONG_TASK");
                 return;
             }
-            if (result == Camunda810UserTaskClient.CompletionState.ALREADY_COMPLETED
+            if (result == Camunda85UserTaskClient.CompletionState.ALREADY_COMPLETED
                     && !tasks.completedBy(expected, lookup.taskKey(), operationId)) {
                 intervention(operationId, "TASK_COMPLETED_WITHOUT_OPERATION_MARKER");
                 return;
@@ -361,9 +361,7 @@ public class DurableConfirmCoordinator {
     }
 
     private void requireAccess(String applicationId, Authentication actor) {
-        if (authorization.evaluate(actor, applicationId) != ConfirmAuthorizationService.Outcome.AUTHORIZED) {
-            throw failure(HttpStatus.FORBIDDEN, "CONFIRM_CASE_ACCESS_DENIED", "Case access denied");
-        }
+        authorization.requireAccess(actor, applicationId);
     }
 
     private static String auditDetails(String applicationId, long version, CompletenessStatus previous,

@@ -4,7 +4,7 @@
                   xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
                   xmlns:modeler="http://camunda.org/schema/modeler/1.0"
                   id="Definitions_Confirm02QCamundaIT" targetNamespace="http://bpmn.io/schema/bpmn"
-                  modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.10.0">
+                  modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.5.0">
   <bpmn:process id="retail-loan-confirm-02q-it" isExecutable="true">
     <bpmn:startEvent id="StartEvent_Confirm02QIT">
       <bpmn:outgoing>Flow_ToConfirm</bpmn:outgoing>

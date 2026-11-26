@@ -51,10 +51,7 @@ public class ConfirmService {
     @Transactional
     public ConfirmDossierResponse confirm(String applicationId, ConfirmDossierRequest request,
                                           Authentication actor) {
-        if (authorization.evaluate(actor, applicationId) != ConfirmAuthorizationService.Outcome.AUTHORIZED) {
-            throw failure(HttpStatus.FORBIDDEN, "CONFIRM_CASE_ACCESS_DENIED", "Confirmation forbidden",
-                    "The authenticated reviewer is not authorized for this dossier");
-        }
+        authorization.requireAccess(actor, applicationId);
 
         // The upload path takes this same row lock for existing applications.
         Application application = applications.findByIdForUpdate(applicationId)

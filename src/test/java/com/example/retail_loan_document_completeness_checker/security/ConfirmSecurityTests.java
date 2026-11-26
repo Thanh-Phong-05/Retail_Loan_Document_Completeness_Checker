@@ -121,13 +121,13 @@ class ConfirmSecurityTests {
     }
 
     @Test
-    void dossierGetRemainsOutsideConfirmSecurityChain() throws Exception {
+    void dossierGetRemainsPublicInApiSecurityChain() throws Exception {
         mockMvc.perform(get("/api/v1/dossiers"))
                 .andExpect(status().isOk());
     }
 
     @Test
-    void dossierUploadRemainsOutsideConfirmSecurityChain() throws Exception {
+    void dossierUploadRetainsItsExistingPublicCsrfBoundary() throws Exception {
         given(dossierService.upload(any(), anyList())).willReturn(new DossierResponse(
                 "APP-001", "LOAN", "Sample Applicant", LocalDate.of(2026, 11, 20),
                 1, Instant.parse("2026-11-20T00:00:00Z"), CompletenessStatus.REVIEW_NEEDED, List.of()));

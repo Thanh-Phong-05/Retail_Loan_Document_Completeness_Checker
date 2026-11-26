@@ -14,7 +14,7 @@ import com.example.retail_loan_document_completeness_checker.repositories.AuditL
 import com.example.retail_loan_document_completeness_checker.repositories.ConfirmOperationRepository;
 import com.example.retail_loan_document_completeness_checker.repositories.WorkflowCorrelationRepository;
 import com.example.retail_loan_document_completeness_checker.security.ConfirmCaseScope;
-import com.example.retail_loan_document_completeness_checker.services.Camunda810UserTaskClient;
+import com.example.retail_loan_document_completeness_checker.services.Camunda85UserTaskClient;
 import com.example.retail_loan_document_completeness_checker.services.ConfirmEligibilityService;
 import com.example.retail_loan_document_completeness_checker.services.ConfirmReviewFactsSource;
 import com.example.retail_loan_document_completeness_checker.services.DossierPersistenceService;
@@ -69,15 +69,15 @@ class DurableConfirmFlowTests {
     @Autowired EntityManager entityManager;
     @MockitoBean ConfirmCaseScope scope;
     @MockitoBean ConfirmReviewFactsSource reviewFacts;
-    @MockitoBean Camunda810UserTaskClient tasks;
+    @MockitoBean Camunda85UserTaskClient tasks;
     @MockitoSpyBean AuditLogRepository auditSpy;
 
     @Test
     void httpToPersistedOperationToVerifiedTaskToReadyAndOneAudit() throws Exception {
         String app = seed();
-        given(tasks.lookup(any())).willReturn(new Camunda810UserTaskClient.Lookup(
-                Camunda810UserTaskClient.LookupState.OPEN, 300L));
-        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda810UserTaskClient.CompletionState.COMPLETED);
+        given(tasks.lookup(any())).willReturn(new Camunda85UserTaskClient.Lookup(
+                Camunda85UserTaskClient.LookupState.OPEN, 300L));
+        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda85UserTaskClient.CompletionState.COMPLETED);
         given(tasks.completedBy(any(), eq(300L), anyString())).willReturn(true);
 
         mvc.perform(confirm(app)).andExpect(status().isOk())
@@ -99,9 +99,9 @@ class DurableConfirmFlowTests {
     @Test
     void unknownCommandResultReturns202AndLaterRecoveryFinishesWithoutSecondCompletion() throws Exception {
         String app = seed();
-        given(tasks.lookup(any())).willReturn(new Camunda810UserTaskClient.Lookup(
-                Camunda810UserTaskClient.LookupState.OPEN, 300L));
-        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda810UserTaskClient.CompletionState.UNKNOWN);
+        given(tasks.lookup(any())).willReturn(new Camunda85UserTaskClient.Lookup(
+                Camunda85UserTaskClient.LookupState.OPEN, 300L));
+        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda85UserTaskClient.CompletionState.UNKNOWN);
         given(tasks.completedBy(any(), eq(300L), anyString())).willReturn(false);
 
         mvc.perform(confirm(app)).andExpect(status().isAccepted())
@@ -128,8 +128,8 @@ class DurableConfirmFlowTests {
     @Test
     void pendingOperationBlocksUploadAndDuplicateConfirm() throws Exception {
         String app = seed();
-        given(tasks.lookup(any())).willReturn(new Camunda810UserTaskClient.Lookup(
-                Camunda810UserTaskClient.LookupState.UNKNOWN, null));
+        given(tasks.lookup(any())).willReturn(new Camunda85UserTaskClient.Lookup(
+                Camunda85UserTaskClient.LookupState.UNKNOWN, null));
         mvc.perform(confirm(app)).andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.state").value("PENDING"));
         mvc.perform(confirm(app)).andExpect(status().isConflict())
@@ -146,8 +146,8 @@ class DurableConfirmFlowTests {
     @Test
     void taskWithWrongCorrelationCannotReachReady() throws Exception {
         String app = seed();
-        given(tasks.lookup(any())).willReturn(new Camunda810UserTaskClient.Lookup(
-                Camunda810UserTaskClient.LookupState.WRONG_CASE_OR_VERSION, null));
+        given(tasks.lookup(any())).willReturn(new Camunda85UserTaskClient.Lookup(
+                Camunda85UserTaskClient.LookupState.WRONG_CASE_OR_VERSION, null));
         mvc.perform(confirm(app)).andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.state").value("REQUIRES_INTERVENTION"));
         assertThat(audits.countByApplicationApplicationIdAndAction(app, "DOSSIER_CONFIRMED")).isZero();
@@ -156,8 +156,8 @@ class DurableConfirmFlowTests {
     @Test
     void taskAlreadyCompletedBeforeAdmissionCannotBeClaimedAsThisConfirmation() throws Exception {
         String app = seed();
-        given(tasks.lookup(any())).willReturn(new Camunda810UserTaskClient.Lookup(
-                Camunda810UserTaskClient.LookupState.ALREADY_COMPLETED, 300L));
+        given(tasks.lookup(any())).willReturn(new Camunda85UserTaskClient.Lookup(
+                Camunda85UserTaskClient.LookupState.ALREADY_COMPLETED, 300L));
         mvc.perform(confirm(app)).andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.state").value("REQUIRES_INTERVENTION"));
         assertThat(applications.findById(app).orElseThrow().getCompletenessStatus())
@@ -196,9 +196,9 @@ class DurableConfirmFlowTests {
     @Test
     void auditFailureAfterTaskCompletionKeepsOperationRecoverable() throws Exception {
         String app = seed();
-        given(tasks.lookup(any())).willReturn(new Camunda810UserTaskClient.Lookup(
-                Camunda810UserTaskClient.LookupState.OPEN, 300L));
-        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda810UserTaskClient.CompletionState.COMPLETED);
+        given(tasks.lookup(any())).willReturn(new Camunda85UserTaskClient.Lookup(
+                Camunda85UserTaskClient.LookupState.OPEN, 300L));
+        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda85UserTaskClient.CompletionState.COMPLETED);
         given(tasks.completedBy(any(), eq(300L), anyString())).willReturn(true);
         doThrow(new IllegalStateException("synthetic audit outage"))
                 .when(auditSpy).saveAndFlush(any(AuditLog.class));
@@ -221,9 +221,9 @@ class DurableConfirmFlowTests {
     @Test
     void changedReviewEvidenceAfterTaskCompletionRequiresInterventionWithoutReady() throws Exception {
         String app = seed();
-        given(tasks.lookup(any())).willReturn(new Camunda810UserTaskClient.Lookup(
-                Camunda810UserTaskClient.LookupState.OPEN, 300L));
-        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda810UserTaskClient.CompletionState.COMPLETED);
+        given(tasks.lookup(any())).willReturn(new Camunda85UserTaskClient.Lookup(
+                Camunda85UserTaskClient.LookupState.OPEN, 300L));
+        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda85UserTaskClient.CompletionState.COMPLETED);
         given(tasks.completedBy(any(), eq(300L), anyString())).willReturn(false);
         mvc.perform(confirm(app)).andExpect(status().isAccepted());
         ConfirmOperation operation = operations.findByApplicationIdAndDossierVersion(app, 1).orElseThrow();
@@ -254,9 +254,9 @@ class DurableConfirmFlowTests {
                 true, true, true, true);
         given(reviewFacts.read(app, 1)).willReturn(new ConfirmReviewFactsSource.ReviewFacts(
                 prior.evaluationVersion(), snapshot, prior.checklist()));
-        given(tasks.lookup(any())).willReturn(new Camunda810UserTaskClient.Lookup(
-                Camunda810UserTaskClient.LookupState.OPEN, 300L));
-        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda810UserTaskClient.CompletionState.COMPLETED);
+        given(tasks.lookup(any())).willReturn(new Camunda85UserTaskClient.Lookup(
+                Camunda85UserTaskClient.LookupState.OPEN, 300L));
+        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda85UserTaskClient.CompletionState.COMPLETED);
         given(tasks.completedBy(any(), eq(300L), anyString())).willReturn(false);
 
         mvc.perform(confirm(app)).andExpect(status().isAccepted())
@@ -279,9 +279,9 @@ class DurableConfirmFlowTests {
     @Test
     void subMicrosecondEvidenceChangeStillRequiresIntervention() throws Exception {
         String app = seed();
-        given(tasks.lookup(any())).willReturn(new Camunda810UserTaskClient.Lookup(
-                Camunda810UserTaskClient.LookupState.OPEN, 300L));
-        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda810UserTaskClient.CompletionState.COMPLETED);
+        given(tasks.lookup(any())).willReturn(new Camunda85UserTaskClient.Lookup(
+                Camunda85UserTaskClient.LookupState.OPEN, 300L));
+        given(tasks.complete(any(), eq(300L), any())).willReturn(Camunda85UserTaskClient.CompletionState.COMPLETED);
         given(tasks.completedBy(any(), eq(300L), anyString())).willReturn(false);
         mvc.perform(confirm(app)).andExpect(status().isAccepted());
 

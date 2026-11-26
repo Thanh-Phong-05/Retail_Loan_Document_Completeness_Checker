@@ -1,0 +1,64 @@
+# Isolated local test environment, based on camunda/camunda-platform tag 8.5.0 core distribution.
+# Separate ports/volumes: never reuse an 8.10 data volume for this cluster.
+name: confirm85it
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - elastic-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: [CMD-SHELL, "curl -fsS http://localhost:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+  zeebe:
+    image: camunda/zeebe:8.5.0
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms512m -Xmx512m
+      ZEEBE_BROKER_CLUSTER_CLUSTERSIZE: "1"
+      ZEEBE_BROKER_CLUSTER_PARTITIONSCOUNT: "1"
+      ZEEBE_BROKER_CLUSTER_REPLICATIONFACTOR: "1"
+      ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_CLASSNAME: io.camunda.zeebe.exporter.ElasticsearchExporter
+      ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_URL: http://elasticsearch:9200
+      ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_SIZE: "1"
+    ports:
+      - "127.0.0.1:27500:26500"
+      - "127.0.0.1:18088:8080"
+      - "127.0.0.1:19600:9600"
+    volumes:
+      - zeebe-data:/usr/local/zeebe/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+  operate:
+    image: camunda/operate:8.5.0
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms256m -Xmx768m
+      CAMUNDA_OPERATE_ZEEBE_GATEWAYADDRESS: zeebe:26500
+      CAMUNDA_OPERATE_ELASTICSEARCH_URL: http://elasticsearch:9200
+      CAMUNDA_OPERATE_ZEEBEELASTICSEARCH_URL: http://elasticsearch:9200
+    ports:
+      - "127.0.0.1:18091:8080"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+  tasklist:
+    image: camunda/tasklist:8.5.0
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms256m -Xmx768m
+      CAMUNDA_TASKLIST_ZEEBE_GATEWAYADDRESS: zeebe:26500
+      CAMUNDA_TASKLIST_ZEEBE_RESTADDRESS: http://zeebe:8080
+      CAMUNDA_TASKLIST_ELASTICSEARCH_URL: http://elasticsearch:9200
+      CAMUNDA_TASKLIST_ZEEBEELASTICSEARCH_URL: http://elasticsearch:9200
+    ports:
+      - "127.0.0.1:18092:8080"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+volumes:
+  zeebe-data:
+  elastic-data:

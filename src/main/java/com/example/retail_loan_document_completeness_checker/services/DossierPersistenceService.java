@@ -46,7 +46,7 @@ public class DossierPersistenceService {
     private boolean camundaEnabled;
     @Value("${app.camunda.process-id:retail-loan-document-completeness}")
     private String camundaProcessId;
-    @Value("${app.camunda.confirm-element-id:Activity_03e0s8k}")
+    @Value("${app.camunda.confirm-element-id:Activity_0462f5z}")
     private String confirmElementId;
 
     @Autowired
