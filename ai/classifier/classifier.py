@@ -145,3 +145,24 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+def process_documents(files):
+    pages_data = []
+    for file in files:
+        filename = file.fileName.lower()
+        
+        # Giả lập file Sao kê thiếu tháng 10
+        if "sao_ke" in filename or "statement" in filename:
+            pages_data.extend([
+                {"pageAnchor": "page_st_1", "documentClass": "BANK_STATEMENT", "text": "Sao kê tháng 08/2023"},
+                {"pageAnchor": "page_st_2", "documentClass": "BANK_STATEMENT", "text": "Sao kê tháng 09/2023"},
+                {"pageAnchor": "page_st_3", "documentClass": "BANK_STATEMENT", "text": "Sao kê tháng 11/2023"},
+            ])
+            
+        # Giả lập file Hợp đồng thiếu chữ ký ở trang cuối
+        elif "hop_dong" in filename or "contract" in filename:
+            pages_data.extend([
+                {"pageAnchor": "page_ct_1", "documentClass": "LABOR_CONTRACT", "text": "Điều 1: Nội dung..."},
+                {"pageAnchor": "page_ct_2", "documentClass": "LABOR_CONTRACT", "text": "Trang cuối cùng. (Không có chữ ký)"},
+            ])
+            
+    return pages_data
