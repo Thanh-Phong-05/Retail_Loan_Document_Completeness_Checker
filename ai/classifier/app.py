@@ -21,6 +21,7 @@ except ImportError:
 app = FastAPI(title="Retail Loan AI Analyzer API")
 statement_checker = StatementContractChecker()
 
+# 1. Đã đổi thành storagePath (Dòng 17)
 class FileData(BaseModel):
     fileId: str
     fileName: str
@@ -36,6 +37,7 @@ async def analyze_dossier(request: AnalyzeRequest):
     if not request.files:
         raise HTTPException(status_code=400, detail="Không có file nào được cung cấp")
 
+    # 2. Đã đổi thành storagePath (Dòng 30)
     for file in request.files:
         if not os.path.exists(file.storagePath):
             raise HTTPException(status_code=404, detail=f"Không tìm thấy file: {file.storagePath}")
@@ -53,12 +55,12 @@ async def analyze_dossier(request: AnalyzeRequest):
 
     results = []
 
+    # Trả về cấu trúc pages: [{"documentClass": ...}]
     if "BANK_STATEMENT" in grouped_pages:
         res = statement_checker.check_statement(grouped_pages["BANK_STATEMENT"])
         results.append({
-            "documentClass": "BANK_STATEMENT",
             "status": res["status"],
-            "pages": grouped_pages["BANK_STATEMENT"],
+            "pages": [{"documentClass": "BANK_STATEMENT", **p} for p in grouped_pages["BANK_STATEMENT"]],
             "details": res.get("details", ""),
             "missingMonths": res.get("missing_months", [])
         })
@@ -67,29 +69,28 @@ async def analyze_dossier(request: AnalyzeRequest):
         if contract_type in grouped_pages:
             res = statement_checker.check_contract(grouped_pages[contract_type])
             results.append({
-                "documentClass": contract_type,
                 "status": res["status"],
-                "pages": grouped_pages[contract_type],
+                "pages": [{"documentClass": contract_type, **p} for p in grouped_pages[contract_type]],
                 "details": res.get("details", "")
             })
 
+    # 3. Đã xóa Mock, gọi hàm thật của Tín (Dòng 51-57)
     if "NATIONAL_ID" in grouped_pages:
         if id_checker:
             cccd_res = id_checker.check_pages(grouped_pages["NATIONAL_ID"])
             results.append({
-                "documentClass": "NATIONAL_ID",
                 "status": cccd_res.status,
-                "pages": grouped_pages["NATIONAL_ID"],
+                "pages": [{"documentClass": "NATIONAL_ID", **p} for p in grouped_pages["NATIONAL_ID"]],
                 "details": getattr(cccd_res, 'details', "Đã check CCCD")
             })
         else:
             results.append({
-                "documentClass": "NATIONAL_ID",
                 "status": "UNKNOWN",
-                "pages": grouped_pages["NATIONAL_ID"],
+                "pages": [{"documentClass": "NATIONAL_ID", **p} for p in grouped_pages["NATIONAL_ID"]],
                 "details": "Chưa tìm thấy module id_card_checker của Tín"
             })
 
+    # 4. Đã sửa format JSON trả về theo đúng OcrCheckWorker.java (Dòng 59-64)
     return {
         "applicationId": request.applicationId,
         "dossierVersion": request.dossierVersion,
