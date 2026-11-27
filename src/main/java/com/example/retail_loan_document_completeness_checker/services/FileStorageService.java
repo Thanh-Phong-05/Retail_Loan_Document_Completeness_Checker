@@ -3,20 +3,23 @@ package com.example.retail_loan_document_completeness_checker.services;
 import com.example.retail_loan_document_completeness_checker.exceptions.FileStorageException;
 import com.example.retail_loan_document_completeness_checker.exceptions.FileValidationException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.DigestInputStream;
-import java.util.HexFormat;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -48,6 +51,22 @@ public class FileStorageService {
         } catch (RuntimeException exception) {
             deleteAll(storedFiles);
             throw exception;
+        }
+    }
+
+    public Resource loadAsResource(String storedFileName) {
+        try {
+            Path filePath = storageRoot.resolve(storedFileName).normalize();
+            if (!filePath.startsWith(storageRoot)) {
+                throw new FileValidationException("Invalid document file path");
+            }
+            Resource resource = new UrlResource(filePath.toUri());
+            if (!resource.exists() || !resource.isReadable()) {
+                throw new FileStorageException("Could not read document file: " + storedFileName, null);
+            }
+            return resource;
+        } catch (MalformedURLException exception) {
+            throw new FileStorageException("Invalid document file URL", exception);
         }
     }
 
@@ -183,7 +202,6 @@ public class FileStorageService {
         try {
             Files.deleteIfExists(path);
         } catch (IOException ignored) {
-            // The original failure is more useful to the caller than cleanup failure.
         }
     }
 }

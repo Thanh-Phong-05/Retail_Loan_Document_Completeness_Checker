@@ -13,13 +13,24 @@ import com.example.retail_loan_document_completeness_checker.models.DocumentFile
 import com.example.retail_loan_document_completeness_checker.models.DossierVersion;
 import com.example.retail_loan_document_completeness_checker.repositories.ApplicationRepository;
 import com.example.retail_loan_document_completeness_checker.repositories.AuditLogRepository;
+import com.example.retail_loan_document_completeness_checker.repositories.DocumentFileRepository;
+import com.example.retail_loan_document_completeness_checker.repositories.ConfirmOperationRepository;
+import com.example.retail_loan_document_completeness_checker.models.ConfirmOperation;
+import com.example.retail_loan_document_completeness_checker.models.WorkflowCorrelation;
+import com.example.retail_loan_document_completeness_checker.repositories.WorkflowCorrelationRepository;
+import com.example.retail_loan_document_completeness_checker.exceptions.ConfirmException;
+import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
 import com.example.retail_loan_document_completeness_checker.repositories.DossierVersionRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -28,21 +39,60 @@ public class DossierPersistenceService {
     private final ApplicationRepository applicationRepository;
     private final DossierVersionRepository dossierVersionRepository;
     private final AuditLogRepository auditLogRepository;
+    private final DocumentFileRepository documentFileRepository;
+    private final ConfirmOperationRepository confirmOperations;
+    private final WorkflowCorrelationRepository workflowCorrelations;
+    @Value("${app.camunda.enabled:false}")
+    private boolean camundaEnabled;
+    @Value("${app.camunda.process-id:retail-loan-document-completeness}")
+    private String camundaProcessId;
+    @Value("${app.camunda.confirm-element-id:Activity_0462f5z}")
+    private String confirmElementId;
+
+    @Autowired
+    public DossierPersistenceService(
+            ApplicationRepository applicationRepository,
+            DossierVersionRepository dossierVersionRepository,
+            AuditLogRepository auditLogRepository,
+            DocumentFileRepository documentFileRepository,
+            ConfirmOperationRepository confirmOperations,
+            WorkflowCorrelationRepository workflowCorrelations
+    ) {
+        this.applicationRepository = applicationRepository;
+        this.dossierVersionRepository = dossierVersionRepository;
+        this.auditLogRepository = auditLogRepository;
+        this.documentFileRepository = documentFileRepository;
+        this.confirmOperations = confirmOperations;
+        this.workflowCorrelations = workflowCorrelations;
+    }
+
+    public DossierPersistenceService(ApplicationRepository applicationRepository,
+                                     DossierVersionRepository dossierVersionRepository,
+                                     AuditLogRepository auditLogRepository,
+                                     DocumentFileRepository documentFileRepository) {
+        this(applicationRepository, dossierVersionRepository, auditLogRepository,
+                documentFileRepository, null, null);
+    }
 
     public DossierPersistenceService(
             ApplicationRepository applicationRepository,
             DossierVersionRepository dossierVersionRepository,
             AuditLogRepository auditLogRepository
     ) {
-        this.applicationRepository = applicationRepository;
-        this.dossierVersionRepository = dossierVersionRepository;
-        this.auditLogRepository = auditLogRepository;
+        this(applicationRepository, dossierVersionRepository, auditLogRepository, null);
     }
 
     @Transactional
     public DossierResponse saveUpload(UploadDossierRequest request, List<StoredFile> storedFiles) {
-        Application application = applicationRepository.findById(request.applicationId())
+        Application application = applicationRepository.findByIdForUpdate(request.applicationId())
                 .orElseGet(() -> newApplication(request));
+        if (confirmOperations != null && confirmOperations.existsByApplicationIdAndStateIn(
+                request.applicationId(), List.of(ConfirmOperation.State.PENDING,
+                        ConfirmOperation.State.COMPLETING, ConfirmOperation.State.RECONCILING,
+                        ConfirmOperation.State.REQUIRES_INTERVENTION))) {
+            throw new ConfirmException(HttpStatus.CONFLICT, "CONFIRM_IN_PROGRESS",
+                    "Confirmation in progress", "Upload is blocked while workflow confirmation is unresolved");
+        }
         application.setProductType(request.productType());
         application.setApplicantName(request.applicantName());
         application.setSubmissionDate(LocalDate.now());
@@ -62,6 +112,18 @@ public class DossierPersistenceService {
 
         applicationRepository.save(application);
         auditLogRepository.save(uploadAuditLog(application, dossierVersion));
+        if (camundaEnabled) {
+            WorkflowCorrelation intent = new WorkflowCorrelation();
+            intent.setId(UUID.randomUUID().toString());
+            intent.setApplicationId(request.applicationId());
+            intent.setDossierVersion(nextVersion);
+            intent.setProcessId(camundaProcessId);
+            intent.setConfirmElementId(confirmElementId);
+            intent.setTenantId("<default>");
+            intent.setCreatedAt(Instant.now());
+            intent.setState(WorkflowCorrelation.State.START_PENDING);
+            workflowCorrelations.saveAndFlush(intent);
+        }
         return toResponse(application, dossierVersion);
     }
 
@@ -73,6 +135,27 @@ public class DossierPersistenceService {
                 .findFirstByApplicationApplicationIdOrderByVersionNumberDesc(applicationId)
                 .orElseThrow(() -> new DossierNotFoundException(applicationId));
         return toResponse(application, version);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DossierResponse> getAllLatest() {
+        return applicationRepository.findAll().stream()
+                .map(application -> dossierVersionRepository
+                        .findFirstByApplicationApplicationIdOrderByVersionNumberDesc(application.getApplicationId())
+                        .map(version -> toResponse(application, version)))
+                .flatMap(Optional::stream)
+                .sorted(Comparator.comparing(DossierResponse::versionCreatedAt).reversed())
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public DocumentFile getDocumentFile(String applicationId, String fileId) {
+        if (documentFileRepository == null) {
+            throw new DossierNotFoundException(applicationId);
+        }
+        return documentFileRepository
+                .findByFileIdAndDossierVersionApplicationApplicationId(fileId, applicationId)
+                .orElseThrow(() -> new DossierNotFoundException(applicationId));
     }
 
     private Application newApplication(UploadDossierRequest request) {

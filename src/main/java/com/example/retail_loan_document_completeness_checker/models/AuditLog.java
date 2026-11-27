@@ -7,6 +7,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.Nationalized;
 
 import java.time.Instant;
 
@@ -22,6 +23,7 @@ public class AuditLog {
     private String action;
 
     @Column(name = "details", length = 1000)
+    @Nationalized
     private String details;
 
     @Column(name = "created_at", nullable = false)

@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.List;
 
-// [SUB-104.2] Bảng DocumentFiles lưu file tài liệu
+// [SUB-104.2] Báº£ng DocumentFiles lÆ°u file tÃ i liá»‡u
 @Entity
 @Table(name = "DocumentFiles")
 public class DocumentFile {
@@ -98,3 +98,4 @@ public class DocumentFile {
 
     public List<CompletenessResult> getCompletenessResults() { return completenessResults; }
 }
+

@@ -1,3 +1,4 @@
+
 package com.example.retail_loan_document_completeness_checker.services;
 
 import com.example.retail_loan_document_completeness_checker.dto.UploadDossierRequest;
@@ -6,6 +7,7 @@ import com.example.retail_loan_document_completeness_checker.repositories.AuditL
 import com.example.retail_loan_document_completeness_checker.repositories.DossierVersionRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
@@ -15,6 +17,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest(properties = "debug=false")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(DossierPersistenceService.class)
 class DossierPersistenceServiceTests {
 
