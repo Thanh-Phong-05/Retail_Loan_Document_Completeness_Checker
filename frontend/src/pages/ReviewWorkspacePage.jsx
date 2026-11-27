@@ -186,15 +186,33 @@ export default function ReviewWorkspacePage() {
     window.setTimeout(() => setHighlightPulse(false), 1400);
   };
 
-  const handleConfirmHandoff = async (note) => {
-    await confirmHandoff(dossier.applicationId, {
-      reviewerName: user?.fullName || "Alex Morgan",
-      note,
-    });
+
+const handleConfirmHandoff = async (note) => {
+  setActionSuccessMsg("");
+
+  const result = await confirmHandoff(dossier.applicationId, {
+    reviewerName: user?.fullName || "Alex Morgan",
+    note,
+  });
+
+  if (useMockApi || result?.state === "COMPLETED") {
     setActionSuccessMsg(
-      `Đã xác nhận bàn giao hồ sơ ${dossier.applicationId} sang READY_FOR_CREDIT_REVIEW và ghi AuditLogs.`
+      `Đã xác nhận bàn giao hồ sơ ${dossier.applicationId} thành công.`
     );
-  };
+    return;
+  }
+
+  if (result?.httpStatus === 202) {
+    setActionSuccessMsg(
+      `Backend đã tiếp nhận yêu cầu xác nhận hồ sơ ${dossier.applicationId}. ` +
+      `Trạng thái: ${result.state || "PENDING"}. Chưa hoàn tất bàn giao.`
+    );
+    return;
+  }
+
+  throw new Error("Phản hồi xác nhận từ Backend không hợp lệ.");
+};
+
 
   const handleRequestSupplement = async (reason) => {
     await requestSupplement(dossier.applicationId, {

@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { INITIAL_MOCK_DOSSIERS } from "../data/mockDossiers";
 import {
@@ -61,6 +62,7 @@ function inferDocTypeFromFileName(fileName = "") {
   ) {
     return "NATIONAL_ID";
   }
+
   if (
     normalized.includes("hdld") ||
     normalized.includes("hop_dong") ||
@@ -71,6 +73,7 @@ function inferDocTypeFromFileName(fileName = "") {
   ) {
     return "LABOR_CONTRACT";
   }
+
   if (
     normalized.includes("sao_ke") ||
     normalized.includes("sao ke") ||
@@ -81,6 +84,7 @@ function inferDocTypeFromFileName(fileName = "") {
   ) {
     return "BANK_STATEMENT";
   }
+
   if (
     normalized.includes("don_vay") ||
     normalized.includes("don vay") ||
@@ -92,6 +96,7 @@ function inferDocTypeFromFileName(fileName = "") {
   ) {
     return "LOAN_APPLICATION";
   }
+
   return "UNKNOWN";
 }
 
@@ -114,6 +119,7 @@ export function DossierProvider({ children }) {
   const [useMockApi, setUseMockApi] = useState(
     () => (import.meta.env.VITE_USE_MOCK_API ?? "true") !== "false"
   );
+
   const [dossiers, setDossiers] = useState(() => loadStoredDossiers());
   const [draftLoan, setDraftLoan] = useState(() => loadStoredDraft());
   const [fileUrlsByFileId, setFileUrlsByFileId] = useState({});
@@ -121,7 +127,10 @@ export function DossierProvider({ children }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(DOSSIERS_STORAGE_KEY, JSON.stringify(dossiers));
+      localStorage.setItem(
+        DOSSIERS_STORAGE_KEY,
+        JSON.stringify(dossiers)
+      );
     } catch {
       // Ignore
     }
@@ -129,7 +138,10 @@ export function DossierProvider({ children }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftLoan));
+      localStorage.setItem(
+        DRAFT_STORAGE_KEY,
+        JSON.stringify(draftLoan)
+      );
     } catch {
       // Ignore
     }
@@ -137,19 +149,24 @@ export function DossierProvider({ children }) {
 
   const refreshFromBackend = async () => {
     if (useMockApi) return dossiers;
+
     try {
       const list = await dossierApi.getDossiers();
+
       const normalized = Array.isArray(list)
         ? list.map(normalizeBackendDossier)
         : [];
+
       setDossiers(normalized);
       setSyncError(null);
+
       return normalized;
     } catch (err) {
       setSyncError(
         err?.response?.data?.message ||
           "Không kết nối được API Backend (kiểm tra Spring Boot & CORS)."
       );
+
       throw err;
     }
   };
@@ -169,16 +186,24 @@ export function DossierProvider({ children }) {
     if (useMockApi) {
       return getDossier(applicationId);
     }
+
     const raw = await dossierApi.getDossierById(applicationId);
     const normalized = normalizeBackendDossier(raw);
+
     setDossiers((prev) => {
-      const exists = prev.some((d) => d.applicationId === applicationId);
+      const exists = prev.some(
+        (d) => d.applicationId === applicationId
+      );
+
       return exists
         ? prev.map((d) =>
-            d.applicationId === applicationId ? normalized : d
+            d.applicationId === applicationId
+              ? normalized
+              : d
           )
         : [normalized, ...prev];
     });
+
     return normalized;
   };
 
@@ -193,7 +218,7 @@ export function DossierProvider({ children }) {
     const cleanId = applicationId.trim();
     const cleanName = applicantName.trim();
 
-    // Create local object URLs so user can preview uploaded PDF/images immediately
+    // Create local object URLs for preview
     const localObjectUrls = files.map((file) => ({
       name: file.name,
       url: URL.createObjectURL(file),
@@ -206,34 +231,52 @@ export function DossierProvider({ children }) {
         applicantName: cleanName,
         files,
       });
+
       const normalized = normalizeBackendDossier(created);
       const urlMap = {};
+
       (normalized.documents || []).forEach((doc, idx) => {
         if (localObjectUrls[idx]) {
           urlMap[doc.fileId] = localObjectUrls[idx].url;
         }
       });
-      setFileUrlsByFileId((prev) => ({ ...prev, ...urlMap }));
+
+      setFileUrlsByFileId((prev) => ({
+        ...prev,
+        ...urlMap,
+      }));
+
       setDossiers((prev) => {
-        const exists = prev.some((d) => d.applicationId === cleanId);
+        const exists = prev.some(
+          (d) => d.applicationId === cleanId
+        );
+
         return exists
-          ? prev.map((d) => (d.applicationId === cleanId ? normalized : d))
+          ? prev.map((d) =>
+              d.applicationId === cleanId
+                ? normalized
+                : d
+            )
           : [normalized, ...prev];
       });
+
       return normalized;
     }
 
-    // Mock mode: compute real SHA-256 hashes & simulate AI/DMN completeness
+    // Mock mode
     const nowIso = new Date().toISOString();
     const existing = getDossier(cleanId);
     const nextVersion = existing ? existing.version + 1 : 1;
 
     const docs = await Promise.all(
       files.map(async (file, index) => {
-        const fileId = `mock-${cleanId}-v${nextVersion}-${index + 1}-${Date.now()}`;
+        const fileId =
+          `mock-${cleanId}-v${nextVersion}-${index + 1}-${Date.now()}`;
+
         const sha256 = await dossierApi.computeSha256(file);
         const docType = inferDocTypeFromFileName(file.name);
         const isValidType = docType !== "UNKNOWN";
+
         return {
           fileId,
           docType,
@@ -246,31 +289,46 @@ export function DossierProvider({ children }) {
             ? "Đã nhận diện hợp lệ từ tệp tải lên."
             : "AI chưa nhận diện chắc chắn loại giấy tờ, cần cán bộ rà soát.",
           missingPeriod: null,
-          pageCount: file.type?.startsWith("image/") ? 1 : 2,
+          pageCount: file.type?.startsWith("image/")
+            ? 1
+            : 2,
           pageAnchor: 1,
         };
       })
     );
 
     const urlMap = {};
+
     docs.forEach((doc, idx) => {
       if (localObjectUrls[idx]) {
         urlMap[doc.fileId] = localObjectUrls[idx].url;
       }
     });
-    setFileUrlsByFileId((prev) => ({ ...prev, ...urlMap }));
 
-    const presentTypes = new Set(docs.map((d) => d.docType));
+    setFileUrlsByFileId((prev) => ({
+      ...prev,
+      ...urlMap,
+    }));
+
+    const presentTypes = new Set(
+      docs.map((d) => d.docType)
+    );
+
     const missingTypes = REQUIRED_DOC_ORDER.filter(
       (req) => !presentTypes.has(req)
     );
-    const hasBlurryOrUnknown = docs.some((d) => d.status !== "VALID");
+
+    const hasBlurryOrUnknown = docs.some(
+      (d) => d.status !== "VALID"
+    );
 
     let completenessStatus = "READY_FOR_CREDIT_REVIEW";
     let summaryNote = "Đủ 4/4 chứng từ";
+
     if (missingTypes.length > 0) {
       completenessStatus = "INCOMPLETE";
-      summaryNote = `Thiếu ${missingTypes.length} nhóm giấy tờ bắt buộc`;
+      summaryNote =
+        `Thiếu ${missingTypes.length} nhóm giấy tờ bắt buộc`;
     } else if (hasBlurryOrUnknown) {
       completenessStatus = "REVIEW_NEEDED";
       summaryNote = "Cần cán bộ đối chiếu tài liệu";
@@ -280,7 +338,10 @@ export function DossierProvider({ children }) {
       applicationId: cleanId,
       productType,
       applicantName: cleanName,
-      loanAmount: loanAmount || draftLoan.loanAmount || "100.000.000 VNĐ",
+      loanAmount:
+        loanAmount ||
+        draftLoan.loanAmount ||
+        "100.000.000 VNĐ",
       branch:
         branch ||
         (draftLoan.termAndBranch?.includes("·")
@@ -299,40 +360,105 @@ export function DossierProvider({ children }) {
           auditLogId: `log-${Date.now()}`,
           action: "DOSSIER_UPLOADED",
           actor: cleanName,
-          details: `Nộp phiên bản v${nextVersion} gồm ${docs.length} tệp (SHA-256 đã xác thực).`,
+          details:
+            `Nộp phiên bản v${nextVersion} gồm ${docs.length} tệp ` +
+            "(SHA-256 đã xác thực).",
           createdAt: nowIso,
         },
       ],
     };
 
     setDossiers((prev) => {
-      const exists = prev.some((d) => d.applicationId === cleanId);
+      const exists = prev.some(
+        (d) => d.applicationId === cleanId
+      );
+
       return exists
-        ? prev.map((d) => (d.applicationId === cleanId ? newDossier : d))
+        ? prev.map((d) =>
+            d.applicationId === cleanId
+              ? newDossier
+              : d
+          )
         : [newDossier, ...prev];
     });
 
     return newDossier;
   };
 
-  const confirmHandoff = async (applicationId, { reviewerName, note }) => {
+  // Connect real Confirm API
+  const confirmHandoff = async (
+    applicationId,
+    { reviewerName, note }
+  ) => {
     if (!useMockApi) {
-      const updated = await dossierApi.confirmDossier(applicationId, {
-        reviewerName,
-        note,
-      });
-      const normalized = normalizeBackendDossier(updated);
-      setDossiers((prev) =>
-        prev.map((d) => (d.applicationId === applicationId ? normalized : d))
+      // Read current version from Backend
+      const current = await dossierApi.getDossierById(
+        applicationId
       );
-      return normalized;
+
+      const expectedVersion = Number(current?.version);
+
+      if (
+        !Number.isSafeInteger(expectedVersion) ||
+        expectedVersion < 1
+      ) {
+        throw new Error(
+          "Không xác định được phiên bản hồ sơ từ Backend."
+        );
+      }
+
+      const result = await dossierApi.confirmDossier(
+        applicationId,
+        {
+          reviewerName,
+          note,
+          expectedVersion,
+        }
+      );
+
+      // Backend returns operation status, not dossier data
+      if (result.state === "COMPLETED") {
+        const latest = await dossierApi.getDossierById(
+          applicationId
+        );
+
+        const normalized = normalizeBackendDossier(latest);
+
+        setDossiers((prev) =>
+          prev.some(
+            (d) => d.applicationId === applicationId
+          )
+            ? prev.map((d) =>
+                d.applicationId === applicationId
+                  ? normalized
+                  : d
+              )
+            : [normalized, ...prev]
+        );
+
+        return result;
+      }
+
+      // 202 Accepted: still processing
+      if (result.httpStatus === 202) {
+        return result;
+      }
+
+      throw new Error(
+        `Phản hồi Confirm không hợp lệ: ${
+          result.state || "UNKNOWN"
+        }`
+      );
     }
 
+    // Keep existing Mock behavior
     const nowIso = new Date().toISOString();
     let result = null;
+
     setDossiers((prev) =>
       prev.map((d) => {
         if (d.applicationId !== applicationId) return d;
+
         result = {
           ...d,
           completenessStatus: "READY_FOR_CREDIT_REVIEW",
@@ -349,9 +475,11 @@ export function DossierProvider({ children }) {
             },
           ],
         };
+
         return result;
       })
     );
+
     return result;
   };
 
@@ -360,26 +488,40 @@ export function DossierProvider({ children }) {
     { reviewerName, reason }
   ) => {
     if (!useMockApi) {
-      const updated = await dossierApi.requestSupplementDossier(applicationId, {
-        reviewerName,
-        reason,
-      });
+      const updated =
+        await dossierApi.requestSupplementDossier(
+          applicationId,
+          {
+            reviewerName,
+            reason,
+          }
+        );
+
       const normalized = normalizeBackendDossier(updated);
+
       setDossiers((prev) =>
-        prev.map((d) => (d.applicationId === applicationId ? normalized : d))
+        prev.map((d) =>
+          d.applicationId === applicationId
+            ? normalized
+            : d
+        )
       );
+
       return normalized;
     }
 
     const nowIso = new Date().toISOString();
     let result = null;
+
     setDossiers((prev) =>
       prev.map((d) => {
         if (d.applicationId !== applicationId) return d;
+
         result = {
           ...d,
           completenessStatus: "INCOMPLETE",
-          summaryNote: reason || "Cán bộ yêu cầu bổ sung hồ sơ",
+          summaryNote:
+            reason || "Cán bộ yêu cầu bổ sung hồ sơ",
           evaluatedAt: nowIso,
           auditLogs: [
             ...(d.auditLogs || []),
@@ -392,15 +534,18 @@ export function DossierProvider({ children }) {
             },
           ],
         };
+
         return result;
       })
     );
+
     return result;
   };
 
   const resetDemoData = () => {
     setDossiers(INITIAL_MOCK_DOSSIERS);
     setDraftLoan(DEFAULT_DRAFT_LOAN);
+
     try {
       localStorage.removeItem(DOSSIERS_STORAGE_KEY);
       localStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -435,8 +580,12 @@ export function DossierProvider({ children }) {
 
 export function useDossiers() {
   const ctx = useContext(DossierContext);
+
   if (!ctx) {
-    throw new Error("useDossiers must be used inside DossierProvider");
+    throw new Error(
+      "useDossiers must be used inside DossierProvider"
+    );
   }
+
   return ctx;
 }
